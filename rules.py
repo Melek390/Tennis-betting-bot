@@ -12,7 +12,7 @@ Original client rules — do NOT change without client approval:
 from modules.tennis_api.models import MatchState
 
 # Price cap per rule — single source of truth used in checks AND alert detail text
-_PRICE_CAP = {1: 0.85, 2: 0.75, 3: 0.72, 4: 0.58}
+_PRICE_CAP = {1: 0.75, 2: 0.65, 3: 0.62, 4: 0.58}
 
 
 def check_entry(rule: int, match: MatchState, player: str, price: float) -> bool:
@@ -61,13 +61,13 @@ def _rule2_entry(match: MatchState, player: str, price: float) -> bool:
         sets_won == 1
         and sets_lost == 0
         and match.current_set == 2
-        and match.game_lead(player) >= 1
+        and match.game_lead(player) >= 2
         and price <= _PRICE_CAP[2]
     )
 
 
 def _rule2_exit(match: MatchState, player: str) -> bool:
-    return match.game_lead(player) < 1
+    return match.game_lead(player) < 2
 
 
 # ------------------------------------------------------------------
@@ -80,13 +80,13 @@ def _rule3_entry(match: MatchState, player: str, price: float) -> bool:
         sets_won == 1
         and sets_lost == 1
         and match.current_set == 3
-        and match.game_lead(player) >= 1
+        and match.game_lead(player) >= 2
         and price <= _PRICE_CAP[3]
     )
 
 
 def _rule3_exit(match: MatchState, player: str) -> bool:
-    return match.game_lead(player) < 1
+    return match.game_lead(player) < 2
 
 
 # ------------------------------------------------------------------
