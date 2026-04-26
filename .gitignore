@@ -1,0 +1,21 @@
+# Credentials — never commit these
+.env
+*.pem
+
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+.claude
