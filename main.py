@@ -104,17 +104,17 @@ async def _state_cleanup_loop(
 
 async def main() -> None:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    chat_ids = os.getenv("TELEGRAM_CHAT_IDS") or os.getenv("TELEGRAM_CHAT_ID")
     tennis_key = os.getenv("TENNIS_API_KEY")
     kalshi_key_id = os.getenv("KALSHI_KEY_ID", "")
     kalshi_pem = os.getenv("KALSHI_PRIVATE_KEY_PATH", "kalshi_private.pem")
 
-    if not token or not chat_id:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set in .env")
+    if not token or not chat_ids:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_IDS must be set in .env")
     if not tennis_key:
         raise RuntimeError("TENNIS_API_KEY must be set in .env")
 
-    bot = TelegramBot(token=token, chat_id=chat_id)
+    bot = TelegramBot(token=token, chat_ids=chat_ids)
     state_mgr = StateManager()
     bot.app.bot_data[STATE_MGR_KEY] = state_mgr
     tennis = TennisAPIClient(api_key=tennis_key)

@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 class TelegramBot:
-    def __init__(self, token: str, chat_id: str | int):
-        self.chat_id = int(chat_id)
+    def __init__(self, token: str, chat_ids: str):
+        # Accepts "id1,id2" or a single id
+        self.chat_ids = [int(x.strip()) for x in str(chat_ids).split(",") if x.strip()]
         self._state = BotState()
         self.app = Application.builder().token(token).build()
         self.app.bot_data[STATE_KEY] = self._state
@@ -43,15 +44,16 @@ class TelegramBot:
     # ------------------------------------------------------------------
 
     async def _send(self, text: str, reply_markup: InlineKeyboardMarkup | None = None) -> None:
-        try:
-            await self.app.bot.send_message(
-                chat_id=self.chat_id,
-                text=text,
-                parse_mode=ParseMode.HTML,
-                reply_markup=reply_markup,
-            )
-        except TelegramError as e:
-            logger.error("Telegram send failed: %s", e)
+        for chat_id in self.chat_ids:
+            try:
+                await self.app.bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=reply_markup,
+                )
+            except TelegramError as e:
+                logger.error("Telegram send failed for %s: %s", chat_id, e)
 
     # ------------------------------------------------------------------
     # Alert senders — match_id + player_side encode the state key so
