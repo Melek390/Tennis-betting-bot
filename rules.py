@@ -58,7 +58,8 @@ def _rule1_exit(match: MatchState, player: str) -> bool:
 def _rule2_entry(match: MatchState, player: str, price: float) -> bool:
     sets_won, sets_lost = _set_record(match, player)
     return (
-        sets_won == 1
+        match.point_score == "0 - 0"
+        and sets_won == 1
         and sets_lost == 0
         and match.current_set == 2
         and match.game_lead(player) >= 2
@@ -68,7 +69,7 @@ def _rule2_entry(match: MatchState, player: str, price: float) -> bool:
 
 
 def _rule2_exit(match: MatchState, player: str) -> bool:
-    return not match.is_tiebreak and match.game_lead(player) < 2
+    return match.point_score == "0 - 0" and not match.is_tiebreak and match.game_lead(player) < 2
 
 
 # ------------------------------------------------------------------
@@ -78,7 +79,8 @@ def _rule2_exit(match: MatchState, player: str) -> bool:
 def _rule3_entry(match: MatchState, player: str, price: float) -> bool:
     sets_won, sets_lost = _set_record(match, player)
     return (
-        sets_won == 1
+        match.point_score == "0 - 0"
+        and sets_won == 1
         and sets_lost == 1
         and match.current_set == 3
         and match.game_lead(player) >= 2
@@ -88,7 +90,7 @@ def _rule3_entry(match: MatchState, player: str, price: float) -> bool:
 
 
 def _rule3_exit(match: MatchState, player: str) -> bool:
-    return not match.is_tiebreak and match.game_lead(player) < 2
+    return match.point_score == "0 - 0" and not match.is_tiebreak and match.game_lead(player) < 2
 
 
 # ------------------------------------------------------------------
@@ -98,7 +100,8 @@ def _rule3_exit(match: MatchState, player: str) -> bool:
 def _rule4_entry(match: MatchState, player: str, price: float) -> bool:
     set1 = match.set_score(1)
     return (
-        set1 is not None
+        match.point_score == "0 - 0"
+        and set1 is not None
         and set1.winner() == player
         and set1.margin() >= 2
         and match.current_set == 2
@@ -109,7 +112,7 @@ def _rule4_entry(match: MatchState, player: str, price: float) -> bool:
 
 
 def _rule4_exit(match: MatchState, player: str) -> bool:
-    return not match.is_tiebreak and match.game_lead(player) < 1
+    return match.point_score == "0 - 0" and not match.is_tiebreak and match.game_lead(player) < 1
 
 
 # ------------------------------------------------------------------
