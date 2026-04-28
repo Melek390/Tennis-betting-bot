@@ -93,6 +93,7 @@ async def _state_cleanup_loop(
 ) -> None:
     while True:
         await asyncio.sleep(300)  # every 5 minutes
+        tennis.cleanup_stale()
         active = set(tennis.live_matches.keys())
         state_mgr.cleanup(active)
         logger.debug("State cleanup: %d active matches", len(active))

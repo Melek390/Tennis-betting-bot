@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Awaitable, Callable
 
 import aiohttp
@@ -17,10 +18,13 @@ class TennisAPIClient:
     _WS_URL = "wss://wss.api-tennis.com/live"
     _RECONNECT_DELAY = 5  # seconds between reconnection attempts
 
+    _STALE_AFTER = 1800  # seconds — remove match if no update for 30 min
+
     def __init__(self, api_key: str):
         self._api_key = api_key
         self._callbacks: list[UpdateCallback] = []
         self._matches: dict[str, MatchState] = {}
+        self._last_seen: dict[str, float] = {}
         self._running = False
 
     # ------------------------------------------------------------------
@@ -55,11 +59,24 @@ class TennisAPIClient:
     # Internal
     # ------------------------------------------------------------------
 
+    def cleanup_stale(self) -> None:
+        """Remove matches not updated in the last 30 minutes."""
+        cutoff = time.monotonic() - self._STALE_AFTER
+        stale = [mid for mid, ts in self._last_seen.items() if ts < cutoff]
+        for mid in stale:
+            self._matches.pop(mid, None)
+            self._last_seen.pop(mid, None)
+        if stale:
+            logger.info("Removed %d stale matches, %d remaining", len(stale), len(self._matches))
+
     async def _connect(self) -> None:
         url = f"{self._WS_URL}?APIkey={self._api_key}&timezone=UTC"
         async with aiohttp.ClientSession() as session:
             async with session.ws_connect(url, heartbeat=30) as ws:
                 logger.info("Connected to Tennis API WebSocket")
+                # Clear on reconnect — fresh stream means fresh state
+                self._matches.clear()
+                self._last_seen.clear()
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
                         await self._handle_message(msg.data)
@@ -80,6 +97,7 @@ class TennisAPIClient:
         states = parse_message(data)
         for state in states:
             self._matches[state.match_id] = state
+            self._last_seen[state.match_id] = time.monotonic()
             for cb in self._callbacks:
                 try:
                     await cb(state)
