@@ -12,7 +12,7 @@ Original client rules — do NOT change without client approval:
 from modules.tennis_api.models import MatchState
 
 # Price cap per rule — single source of truth used in checks AND alert detail text
-_PRICE_CAP = {1: 0.75, 2: 0.65, 3: 0.62, 4: 0.58}
+_PRICE_CAP = {1: 0.75, 2: 0.65, 3: 0.62, 4: 0.58, 5: 0.60, 6: 0.55, 7: 0.75}
 
 
 def check_entry(rule: int, match: MatchState, player: str, price: float) -> bool:
@@ -24,6 +24,12 @@ def check_entry(rule: int, match: MatchState, player: str, price: float) -> bool
         return _rule3_entry(match, player, price)
     if rule == 4:
         return _rule4_entry(match, player, price)
+    if rule == 5:
+        return _rule5_entry(match, player, price)
+    if rule == 6:
+        return _rule6_entry(match, player, price)
+    if rule == 7:
+        return _rule7_entry(match, player, price)
     return False
 
 
@@ -36,6 +42,12 @@ def check_exit(rule: int, match: MatchState, player: str) -> bool:
         return _rule3_exit(match, player)
     if rule == 4:
         return _rule4_exit(match, player)
+    if rule == 5:
+        return _rule5_exit(match, player)
+    if rule == 6:
+        return _rule6_exit(match, player)
+    if rule == 7:
+        return _rule7_exit(match, player)
     return False
 
 
@@ -150,7 +162,103 @@ def rule_detail(rule: int, match: MatchState, player: str, player_name: str, pri
             f"Price {p}¢ ≤ {cap}¢"
         )
 
+    if rule == 5:
+        return (
+            f"{player_name} is returning | "
+            f"Break point / Advantage | "
+            f"Score {match.point_score} | "
+            f"Price {p}¢ ≤ {cap}¢"
+        )
+
+    if rule == 6:
+        tb_lead = _tiebreak_lead(match, player)
+        return (
+            f"{player_name} leads tiebreak by {tb_lead} points | "
+            f"Score {match.point_score} | "
+            f"Price {p}¢ ≤ {cap}¢"
+        )
+
+    if rule == 7:
+        return (
+            f"{player_name} break confirmed — leads Set {match.current_set} by {games} | "
+            f"Price {p}¢ ≤ {cap}¢"
+        )
+
     return ""
+
+
+# ------------------------------------------------------------------
+# Rule 5 — Returner has break point or advantage + price ≤ 60¢
+# ------------------------------------------------------------------
+
+# Break-point scores when first player serves (second is returner with 40)
+_BP_SECOND_RETURNS = frozenset({"0 - 40", "15 - 40", "30 - 40"})
+# Break-point scores when second player serves (first is returner with 40)
+_BP_FIRST_RETURNS  = frozenset({"40 - 0", "40 - 15", "40 - 30"})
+
+
+def _has_returner_pressure(match: MatchState, player: str) -> bool:
+    """True when player is the returner and has a break point or advantage."""
+    if match.serving == player or match.is_tiebreak:
+        return False
+    ps = match.point_score
+    if match.serving == "first":
+        return player == "second" and (ps in _BP_SECOND_RETURNS or ps == "40 - AD")
+    return player == "first" and (ps in _BP_FIRST_RETURNS or ps == "AD - 40")
+
+
+def _rule5_entry(match: MatchState, player: str, price: float) -> bool:
+    return _has_returner_pressure(match, player) and price <= _PRICE_CAP[5]
+
+
+def _rule5_exit(match: MatchState, player: str) -> bool:
+    return not _has_returner_pressure(match, player)
+
+
+# ------------------------------------------------------------------
+# Rule 6 — Tiebreak mini-break: leads by 2+ points + price ≤ 55¢
+# ------------------------------------------------------------------
+
+def _tiebreak_lead(match: MatchState, player: str) -> int:
+    """Tiebreak point lead for player. Returns 0 on parse failure."""
+    try:
+        a, b = match.point_score.split(" - ")
+        tb_first, tb_second = int(a.strip()), int(b.strip())
+        return (tb_first - tb_second) if player == "first" else (tb_second - tb_first)
+    except (ValueError, AttributeError):
+        return 0
+
+
+def _rule6_entry(match: MatchState, player: str, price: float) -> bool:
+    return (
+        match.is_tiebreak
+        and _tiebreak_lead(match, player) >= 2
+        and price <= _PRICE_CAP[6]
+    )
+
+
+def _rule6_exit(match: MatchState, player: str) -> bool:
+    return match.is_tiebreak and _tiebreak_lead(match, player) < 2
+
+
+# ------------------------------------------------------------------
+# Rule 7 — Break confirmed: leads by 1 game early in set + price ≤ 75¢
+# Fires only at 0-0 (game boundary) when total set games ≤ 6.
+# ------------------------------------------------------------------
+
+def _rule7_entry(match: MatchState, player: str, price: float) -> bool:
+    total = match.games_first + match.games_second
+    return (
+        match.point_score == "0 - 0"
+        and not match.is_tiebreak
+        and match.game_lead(player) == 1
+        and total <= 6
+        and price <= _PRICE_CAP[7]
+    )
+
+
+def _rule7_exit(match: MatchState, player: str) -> bool:
+    return match.point_score == "0 - 0" and match.game_lead(player) < 1
 
 
 # ------------------------------------------------------------------

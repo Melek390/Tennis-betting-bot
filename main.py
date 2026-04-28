@@ -38,7 +38,7 @@ async def _process_update(
         if price is None:
             continue
 
-        for rule in range(1, 5):
+        for rule in range(1, 8):
             if not bot.enabled_rules.get(rule, True):
                 continue
 
