@@ -62,12 +62,13 @@ def _rule2_entry(match: MatchState, player: str, price: float) -> bool:
         and sets_lost == 0
         and match.current_set == 2
         and match.game_lead(player) >= 2
+        and not match.is_tiebreak
         and price <= _PRICE_CAP[2]
     )
 
 
 def _rule2_exit(match: MatchState, player: str) -> bool:
-    return match.game_lead(player) < 2
+    return not match.is_tiebreak and match.game_lead(player) < 2
 
 
 # ------------------------------------------------------------------
@@ -81,12 +82,13 @@ def _rule3_entry(match: MatchState, player: str, price: float) -> bool:
         and sets_lost == 1
         and match.current_set == 3
         and match.game_lead(player) >= 2
+        and not match.is_tiebreak
         and price <= _PRICE_CAP[3]
     )
 
 
 def _rule3_exit(match: MatchState, player: str) -> bool:
-    return match.game_lead(player) < 2
+    return not match.is_tiebreak and match.game_lead(player) < 2
 
 
 # ------------------------------------------------------------------
@@ -101,12 +103,13 @@ def _rule4_entry(match: MatchState, player: str, price: float) -> bool:
         and set1.margin() >= 2
         and match.current_set == 2
         and match.game_lead(player) >= 1
+        and not match.is_tiebreak
         and price <= _PRICE_CAP[4]
     )
 
 
 def _rule4_exit(match: MatchState, player: str) -> bool:
-    return match.game_lead(player) < 1
+    return not match.is_tiebreak and match.game_lead(player) < 1
 
 
 # ------------------------------------------------------------------

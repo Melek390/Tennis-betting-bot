@@ -62,6 +62,12 @@ class MatchState:
                 return s
         return None
 
+    @property
+    def is_tiebreak(self) -> bool:
+        """True when the current game is a tiebreak (scores at 6-6 or tiebreak final 7-6/6-7)."""
+        g = sorted([self.games_first, self.games_second])
+        return g == [6, 6] or g == [6, 7]
+
     def has_match_point(self, player: str) -> bool:
         return self.match_point_first if player == "first" else self.match_point_second
 
