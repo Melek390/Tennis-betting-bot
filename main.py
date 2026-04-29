@@ -51,10 +51,12 @@ async def _process_update(
                     spread=info.spread,
                 )
                 ctx = state_mgr.get_exit_context(match.match_id, player_side, rule)
-                exit_met = check_exit(rule, match, player_side, price=price, **ctx)
+                exit_reason = check_exit(rule, match, player_side, price=price, **ctx)
             else:
-                entry_met = check_entry(rule, match, player_side, price)
-                exit_met  = check_exit(rule, match, player_side)
+                entry_met   = check_entry(rule, match, player_side, price)
+                exit_reason = check_exit(rule, match, player_side)
+
+            exit_met = exit_reason is not None
 
             signal = state_mgr.process(
                 match.match_id, player_side, rule, entry_met, exit_met,
@@ -87,7 +89,8 @@ async def _process_update(
                 stats = state_mgr.get_position_stats(match.match_id, player_side, rule)
                 await bot.send_exit(rule, player_name, match.match_name, score,
                                     match.match_id, player_side,
-                                    exit_price=price, stats=stats)
+                                    exit_price=price, stats=stats,
+                                    exit_reason=exit_reason)
 
 
 # ------------------------------------------------------------------

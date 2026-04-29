@@ -44,20 +44,21 @@ def check_exit(
     player: str,
     price: float = 0.0,
     entry_price: float | None = None,
-    ticks: int = 0,
+    elapsed_seconds: float = 0.0,
     no_pressure_ticks: int = 0,
-) -> bool:
+) -> str | None:
+    """Returns the exit reason string if exit condition is met, None otherwise."""
     if rule == 1:
-        return _rule1_exit(match, player)
+        return "Match point lost" if _rule1_exit(match, player) else None
     if rule == 2:
-        return _rule2_exit(match, player)
+        return "Game lead dropped below 2" if _rule2_exit(match, player) else None
     if rule == 3:
-        return _rule3_exit(match, player)
+        return "Game lead dropped below 2" if _rule3_exit(match, player) else None
     if rule == 4:
-        return _rule4_exit(match, player)
+        return "Set 2 lead disappeared" if _rule4_exit(match, player) else None
     if rule == 5:
-        return _rule5_exit(match, player, price, entry_price, ticks, no_pressure_ticks)
-    return False
+        return _rule5_exit_reason(match, player, price, entry_price, elapsed_seconds, no_pressure_ticks)
+    return None
 
 
 def has_returner_pressure(match: MatchState, player: str) -> bool:
@@ -215,14 +216,14 @@ def _has_returner_pressure(match: MatchState, player: str) -> bool:
     return player == "first" and (ps in _BP_FIRST_RETURNS or ps == "AD - 40")
 
 
-_JUMP_THRESHOLD = 0.07   # skip entry if price moved more than 7¢ last tick
-_SPREAD_MAX      = 0.05   # skip entry if bid-ask spread > 5¢
+_JUMP_THRESHOLD    = 0.07   # skip entry if price moved more than 7¢ last tick
+_SPREAD_MAX        = 0.05   # skip entry if bid-ask spread > 5¢
 
-_PROFIT_TARGET   = 0.10   # exit on +10¢ move
-_STOP_LOSS       = 0.10   # exit on -10¢ move
-_TIME_EXIT_TICKS = 3      # exit if price hasn't moved enough after this many ticks
-_TIME_EXIT_MIN   = 0.04   # minimum move required to stay in past TIME_EXIT_TICKS
-_PRESSURE_EXIT   = 2      # exit after this many consecutive no-pressure ticks
+_PROFIT_TARGET     = 0.10   # exit on +10¢ move
+_STOP_LOSS         = 0.10   # exit on -10¢ move
+_TIME_EXIT_SECONDS = 90     # exit if price hasn't moved enough after this many seconds
+_TIME_EXIT_MIN     = 0.04   # minimum move required to stay in past TIME_EXIT_SECONDS
+_PRESSURE_EXIT     = 2      # exit after this many consecutive no-pressure ticks
 
 
 def _rule5_entry(
@@ -239,26 +240,25 @@ def _rule5_entry(
     return _has_returner_pressure(match, player) and _PRICE_FLOOR <= price <= _PRICE_CAP[5]
 
 
-def _rule5_exit(
+def _rule5_exit_reason(
     match: MatchState,
     player: str,
     price: float,
     entry_price: float | None,
-    ticks: int,
+    elapsed_seconds: float,
     no_pressure_ticks: int,
-) -> bool:
-    # Pressure-based: no BP/ADV/deuce pressure for 2 consecutive ticks
+) -> str | None:
     if no_pressure_ticks >= _PRESSURE_EXIT:
-        return True
+        return "Break point pressure gone"
     if entry_price is not None:
         move = price - entry_price
-        if move >= _PROFIT_TARGET:       # profit target hit
-            return True
-        if move <= -_STOP_LOSS:          # stop loss hit
-            return True
-        if ticks >= _TIME_EXIT_TICKS and move < _TIME_EXIT_MIN:  # no edge / late entry
-            return True
-    return False
+        if move >= _PROFIT_TARGET:
+            return f"Profit target hit (+{round(move*100)}¢)"
+        if move <= -_STOP_LOSS:
+            return f"Stop loss hit ({round(move*100)}¢)"
+        if elapsed_seconds >= _TIME_EXIT_SECONDS and move < _TIME_EXIT_MIN:
+            return f"No movement after {round(elapsed_seconds)}s"
+    return None
 
 
 # ------------------------------------------------------------------

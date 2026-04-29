@@ -75,12 +75,15 @@ class TelegramBot:
         match_id: str, player_side: str,
         exit_price: float | None = None,
         stats: dict | None = None,
+        exit_reason: str | None = None,
     ) -> None:
         kb = InlineKeyboardMarkup([[
             InlineKeyboardButton("Confirmed exit",       callback_data=f"cx:{match_id}:{player_side}:{rule}"),
             InlineKeyboardButton("Keeping my position",  callback_data=f"kx:{match_id}:{player_side}:{rule}"),
         ]])
-        await self._send(alerts.exit_text(rule, player, match, score, exit_price=exit_price, stats=stats), reply_markup=kb)
+        await self._send(alerts.exit_text(rule, player, match, score,
+                                          exit_price=exit_price, stats=stats,
+                                          exit_reason=exit_reason), reply_markup=kb)
 
     async def send_reentry(
         self, rule: int, player: str, match: str, score: str, price: float,

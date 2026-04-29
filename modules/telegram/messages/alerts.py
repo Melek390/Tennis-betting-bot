@@ -48,8 +48,9 @@ def exit_text(
     rule: int, player: str, match: str, score: str,
     exit_price: float | None = None,
     stats: dict | None = None,
+    exit_reason: str | None = None,
 ) -> str:
-    reason = _EXIT_REASONS.get(rule, "Condition no longer met")
+    reason = exit_reason or _EXIT_REASONS.get(rule, "Condition no longer met")
 
     ep     = stats.get("entry_price")     if stats else None
     e_ts   = stats.get("entry_timestamp") if stats else None

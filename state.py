@@ -17,11 +17,12 @@ class _Entry:
     state: RuleState = RuleState.WATCHING
     entry_price: float | None = None
     entry_timestamp: datetime | None = None
-    entry_state: str = ""                          # "Break Point (40 - 30)" etc.
-    entry_spread: float | None = None              # spread at entry for slippage calc
+    entry_state: str = ""
+    entry_spread: float | None = None
+    position_confirmed_at: datetime | None = None  # when user pressed "Confirmed entry"
     ticks_in_position: int = 0
     no_pressure_ticks: int = 0
-    price_after_tick: list = field(default_factory=list)   # prices at tick 1, 2
+    price_after_tick: list = field(default_factory=list)
 
 
 # (match_id, player_side, rule_number) → _Entry
@@ -88,6 +89,7 @@ class StateManager:
         e = self._get(match_id, player, rule)
         if e.state == RuleState.PENDING_ENTRY:
             e.state = RuleState.IN_POSITION
+            e.position_confirmed_at = datetime.now(timezone.utc)
             e.ticks_in_position = 0
             e.no_pressure_ticks = 0
 
@@ -110,6 +112,9 @@ class StateManager:
         e = self._get(match_id, player, rule)
         if e.state == RuleState.PENDING_REENTRY:
             e.state = RuleState.IN_POSITION
+            e.position_confirmed_at = datetime.now(timezone.utc)
+            e.ticks_in_position = 0
+            e.no_pressure_ticks = 0
 
     def skip_reentry(self, match_id: str, player: str, rule: int) -> None:
         e = self._get(match_id, player, rule)
@@ -134,9 +139,13 @@ class StateManager:
     def get_exit_context(self, match_id: str, player: str, rule: int) -> dict:
         """Return position context needed by rule exit conditions."""
         e = self._get(match_id, player, rule)
+        if e.position_confirmed_at is not None:
+            elapsed = (datetime.now(timezone.utc) - e.position_confirmed_at).total_seconds()
+        else:
+            elapsed = 0.0
         return {
-            "entry_price": e.entry_price,
-            "ticks": e.ticks_in_position,
+            "entry_price":      e.entry_price,
+            "elapsed_seconds":  elapsed,
             "no_pressure_ticks": e.no_pressure_ticks,
         }
 
