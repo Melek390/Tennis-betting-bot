@@ -6,11 +6,14 @@ _PRICE_FLOOR = 0.10
 _JUMP_THRESHOLD    = 0.07
 _SPREAD_MAX        = 0.05
 
-_PROFIT_TARGET     = 0.10
-_STOP_LOSS         = 0.10
-_TIME_EXIT_SECONDS = 90
-_TIME_EXIT_MIN     = 0.04
-_PRESSURE_EXIT     = 2
+_FAST_PROFIT_TARGET = 0.08   # exit at +8¢ if move happens within first Kalshi cycle
+_FAST_PROFIT_WINDOW = 30.0   # seconds — first Kalshi refresh window
+_EXTENDED_TARGET    = 0.14   # hold to +14¢ if move develops slowly after first cycle
+_STOP_LOSS          = 0.06   # hard stop at -6¢...
+_STOP_HOLD_WINDOW   = 30.0   # ...but hold if pressure still active within first 30s
+_TIME_EXIT_SECONDS  = 90
+_TIME_EXIT_MIN      = 0.04
+_PRESSURE_EXIT      = 2
 
 # Break-point scores when first player serves (second is returner with 40)
 _BP_SECOND_RETURNS = frozenset({"0 - 40", "15 - 40", "30 - 40"})
@@ -45,10 +48,22 @@ def check_exit(
         return "Break point pressure gone"
     if entry_price is not None:
         move = price - entry_price
-        if move >= _PROFIT_TARGET:
+
+        # Profit — time-aware split
+        if elapsed_seconds <= _FAST_PROFIT_WINDOW and move >= _FAST_PROFIT_TARGET:
+            return f"Fast profit (+{round(move*100)}¢)"
+        if elapsed_seconds > _FAST_PROFIT_WINDOW and move >= _EXTENDED_TARGET:
             return f"Profit target hit (+{round(move*100)}¢)"
+
+        # Context-aware stop loss
+        # Hold through shakeout if pressure is still active and entry is fresh
         if move <= -_STOP_LOSS:
-            return f"Stop loss hit ({round(move*100)}¢)"
+            if no_pressure_ticks == 0 and elapsed_seconds <= _STOP_HOLD_WINDOW:
+                pass
+            else:
+                return f"Stop loss hit ({round(move*100)}¢)"
+
+        # No progress
         if elapsed_seconds >= _TIME_EXIT_SECONDS and move < _TIME_EXIT_MIN:
             return f"No movement after {round(elapsed_seconds)}s"
     return None
