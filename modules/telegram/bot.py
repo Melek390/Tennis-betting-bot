@@ -62,33 +62,35 @@ class TelegramBot:
 
     async def send_entry(
         self, rule: int, player: str, match: str, score: str, price: float,
-        match_id: str, player_side: str, detail: str = "",
+        match_id: str, player_side: str, detail: str = "", spread: float | None = None,
     ) -> None:
         kb = InlineKeyboardMarkup([[
             InlineKeyboardButton("Confirmed entry",   callback_data=f"ce:{match_id}:{player_side}:{rule}"),
             InlineKeyboardButton("I'm skipping this", callback_data=f"se:{match_id}:{player_side}:{rule}"),
         ]])
-        await self._send(alerts.entry_text(rule, player, match, score, price, detail), reply_markup=kb)
+        await self._send(alerts.entry_text(rule, player, match, score, price, detail, spread=spread), reply_markup=kb)
 
     async def send_exit(
         self, rule: int, player: str, match: str, score: str,
         match_id: str, player_side: str,
+        exit_price: float | None = None,
+        stats: dict | None = None,
     ) -> None:
         kb = InlineKeyboardMarkup([[
             InlineKeyboardButton("Confirmed exit",       callback_data=f"cx:{match_id}:{player_side}:{rule}"),
             InlineKeyboardButton("Keeping my position",  callback_data=f"kx:{match_id}:{player_side}:{rule}"),
         ]])
-        await self._send(alerts.exit_text(rule, player, match, score), reply_markup=kb)
+        await self._send(alerts.exit_text(rule, player, match, score, exit_price=exit_price, stats=stats), reply_markup=kb)
 
     async def send_reentry(
         self, rule: int, player: str, match: str, score: str, price: float,
-        match_id: str, player_side: str, detail: str = "",
+        match_id: str, player_side: str, detail: str = "", spread: float | None = None,
     ) -> None:
         kb = InlineKeyboardMarkup([[
             InlineKeyboardButton("Confirmed re-entry",   callback_data=f"cr:{match_id}:{player_side}:{rule}"),
             InlineKeyboardButton("I'm skipping this",    callback_data=f"sr:{match_id}:{player_side}:{rule}"),
         ]])
-        await self._send(alerts.reentry_text(rule, player, match, score, price, detail), reply_markup=kb)
+        await self._send(alerts.reentry_text(rule, player, match, score, price, detail, spread=spread), reply_markup=kb)
 
     async def send_heartbeat(self, match_count: int) -> None:
         await self._send(alerts.heartbeat_text(match_count, self._state.enabled_rules))

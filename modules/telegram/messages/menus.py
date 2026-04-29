@@ -4,8 +4,6 @@ RULE_LABELS: dict[int, str] = {
     3: "1-1 sets + 2 game lead · ≤62¢",
     4: "Set 1 dominant + 1 game lead · ≤58¢",
     5: "Break point / Advantage · ≤60¢",
-    6: "Tiebreak mini-break · ≤55¢",
-    7: "Break confirmed (early set) · ≤75¢",
 }
 
 

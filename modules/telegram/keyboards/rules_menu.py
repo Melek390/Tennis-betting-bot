@@ -9,7 +9,7 @@ def build(enabled_rules: dict[int, bool]) -> InlineKeyboardMarkup:
             f"{'✅' if enabled_rules[r] else '⬜'} Rule {r} — {RULE_LABELS[r]}",
             callback_data=f"toggle_{r}",
         )]
-        for r in range(1, 8)
+        for r in range(1, 6)
     ]
     rows.append([InlineKeyboardButton("« Back to Main Menu", callback_data="main")])
     return InlineKeyboardMarkup(rows)

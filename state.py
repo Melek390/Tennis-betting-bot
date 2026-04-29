@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 
 
@@ -14,6 +15,13 @@ class RuleState(Enum):
 @dataclass
 class _Entry:
     state: RuleState = RuleState.WATCHING
+    entry_price: float | None = None
+    entry_timestamp: datetime | None = None
+    entry_state: str = ""                          # "Break Point (40 - 30)" etc.
+    entry_spread: float | None = None              # spread at entry for slippage calc
+    ticks_in_position: int = 0
+    no_pressure_ticks: int = 0
+    price_after_tick: list = field(default_factory=list)   # prices at tick 1, 2
 
 
 # (match_id, player_side, rule_number) → _Entry
@@ -38,6 +46,9 @@ class StateManager:
         rule: int,
         entry_met: bool,
         exit_met: bool,
+        price: float | None = None,
+        entry_state: str = "",
+        entry_spread: float | None = None,
     ) -> str | None:
         """
         Returns "entry", "exit", "reentry", or None.
@@ -47,6 +58,11 @@ class StateManager:
 
         if e.state == RuleState.WATCHING and entry_met:
             e.state = RuleState.PENDING_ENTRY
+            e.entry_price = price
+            e.entry_timestamp = datetime.now(timezone.utc)
+            e.entry_state = entry_state
+            e.entry_spread = entry_spread
+            e.price_after_tick = []
             return "entry"
 
         if e.state == RuleState.IN_POSITION and exit_met:
@@ -55,6 +71,11 @@ class StateManager:
 
         if e.state == RuleState.WATCHING_REENTRY and entry_met:
             e.state = RuleState.PENDING_REENTRY
+            e.entry_price = price
+            e.entry_timestamp = datetime.now(timezone.utc)
+            e.entry_state = entry_state
+            e.entry_spread = entry_spread
+            e.price_after_tick = []
             return "reentry"
 
         return None
@@ -67,6 +88,8 @@ class StateManager:
         e = self._get(match_id, player, rule)
         if e.state == RuleState.PENDING_ENTRY:
             e.state = RuleState.IN_POSITION
+            e.ticks_in_position = 0
+            e.no_pressure_ticks = 0
 
     def skip_entry(self, match_id: str, player: str, rule: int) -> None:
         e = self._get(match_id, player, rule)
@@ -92,6 +115,41 @@ class StateManager:
         e = self._get(match_id, player, rule)
         if e.state == RuleState.PENDING_REENTRY:
             e.state = RuleState.WATCHING_REENTRY
+
+    def tick_position(
+        self, match_id: str, player: str, rule: int, has_pressure: bool, price: float | None = None
+    ) -> None:
+        """Increment per-position counters. Only acts when IN_POSITION."""
+        e = self._get(match_id, player, rule)
+        if e.state != RuleState.IN_POSITION:
+            return
+        e.ticks_in_position += 1
+        if price is not None and len(e.price_after_tick) < 2:
+            e.price_after_tick.append(price)
+        if has_pressure:
+            e.no_pressure_ticks = 0
+        else:
+            e.no_pressure_ticks += 1
+
+    def get_exit_context(self, match_id: str, player: str, rule: int) -> dict:
+        """Return position context needed by rule exit conditions."""
+        e = self._get(match_id, player, rule)
+        return {
+            "entry_price": e.entry_price,
+            "ticks": e.ticks_in_position,
+            "no_pressure_ticks": e.no_pressure_ticks,
+        }
+
+    def get_position_stats(self, match_id: str, player: str, rule: int) -> dict:
+        """Return full entry stats for display in the exit alert."""
+        e = self._get(match_id, player, rule)
+        return {
+            "entry_price":     e.entry_price,
+            "entry_timestamp": e.entry_timestamp,
+            "entry_state":     e.entry_state,
+            "entry_spread":    e.entry_spread,
+            "price_after_tick": list(e.price_after_tick),
+        }
 
     # ------------------------------------------------------------------
 

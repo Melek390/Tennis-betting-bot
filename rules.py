@@ -12,10 +12,17 @@ Original client rules — do NOT change without client approval:
 from modules.tennis_api.models import MatchState
 
 # Price cap per rule — single source of truth used in checks AND alert detail text
-_PRICE_CAP = {1: 0.75, 2: 0.65, 3: 0.62, 4: 0.58, 5: 0.60, 6: 0.55, 7: 0.75}
+_PRICE_CAP = {1: 0.75, 2: 0.65, 3: 0.62, 4: 0.58, 5: 0.60}
 
 
-def check_entry(rule: int, match: MatchState, player: str, price: float) -> bool:
+def check_entry(
+    rule: int,
+    match: MatchState,
+    player: str,
+    price: float,
+    prev_price: float | None = None,
+    spread: float | None = None,
+) -> bool:
     if rule == 1:
         return _rule1_entry(match, player, price)
     if rule == 2:
@@ -25,15 +32,19 @@ def check_entry(rule: int, match: MatchState, player: str, price: float) -> bool
     if rule == 4:
         return _rule4_entry(match, player, price)
     if rule == 5:
-        return _rule5_entry(match, player, price)
-    if rule == 6:
-        return _rule6_entry(match, player, price)
-    if rule == 7:
-        return _rule7_entry(match, player, price)
+        return _rule5_entry(match, player, price, prev_price, spread)
     return False
 
 
-def check_exit(rule: int, match: MatchState, player: str) -> bool:
+def check_exit(
+    rule: int,
+    match: MatchState,
+    player: str,
+    price: float = 0.0,
+    entry_price: float | None = None,
+    ticks: int = 0,
+    no_pressure_ticks: int = 0,
+) -> bool:
     if rule == 1:
         return _rule1_exit(match, player)
     if rule == 2:
@@ -43,12 +54,21 @@ def check_exit(rule: int, match: MatchState, player: str) -> bool:
     if rule == 4:
         return _rule4_exit(match, player)
     if rule == 5:
-        return _rule5_exit(match, player)
-    if rule == 6:
-        return _rule6_exit(match, player)
-    if rule == 7:
-        return _rule7_exit(match, player)
+        return _rule5_exit(match, player, price, entry_price, ticks, no_pressure_ticks)
     return False
+
+
+def has_returner_pressure(match: MatchState, player: str) -> bool:
+    """Public wrapper — used by main.py to drive Rule 5 pressure tracking."""
+    return _has_returner_pressure(match, player)
+
+
+def rule5_state_label(match: MatchState) -> str:
+    """Human-readable entry state for Rule 5: 'Advantage (AD - 40)' etc."""
+    ps = match.point_score
+    if "AD" in ps:
+        return f"Advantage ({ps})"
+    return f"Break Point ({ps})"
 
 
 # ------------------------------------------------------------------
@@ -170,20 +190,6 @@ def rule_detail(rule: int, match: MatchState, player: str, player_name: str, pri
             f"Price {p}¢ ≤ {cap}¢"
         )
 
-    if rule == 6:
-        tb_lead = _tiebreak_lead(match, player)
-        return (
-            f"{player_name} leads tiebreak by {tb_lead} points | "
-            f"Score {match.point_score} | "
-            f"Price {p}¢ ≤ {cap}¢"
-        )
-
-    if rule == 7:
-        return (
-            f"{player_name} break confirmed — leads Set {match.current_set} by {games} | "
-            f"Price {p}¢ ≤ {cap}¢"
-        )
-
     return ""
 
 
@@ -207,58 +213,50 @@ def _has_returner_pressure(match: MatchState, player: str) -> bool:
     return player == "first" and (ps in _BP_FIRST_RETURNS or ps == "AD - 40")
 
 
-def _rule5_entry(match: MatchState, player: str, price: float) -> bool:
+_JUMP_THRESHOLD = 0.07   # skip entry if price moved more than 7¢ last tick
+_SPREAD_MAX      = 0.05   # skip entry if bid-ask spread > 5¢
+
+_PROFIT_TARGET   = 0.10   # exit on +10¢ move
+_STOP_LOSS       = 0.10   # exit on -10¢ move
+_TIME_EXIT_TICKS = 3      # exit if price hasn't moved enough after this many ticks
+_TIME_EXIT_MIN   = 0.04   # minimum move required to stay in past TIME_EXIT_TICKS
+_PRESSURE_EXIT   = 2      # exit after this many consecutive no-pressure ticks
+
+
+def _rule5_entry(
+    match: MatchState,
+    player: str,
+    price: float,
+    prev_price: float | None,
+    spread: float | None,
+) -> bool:
+    if spread is not None and spread > _SPREAD_MAX:
+        return False
+    if prev_price is not None and abs(price - prev_price) > _JUMP_THRESHOLD:
+        return False
     return _has_returner_pressure(match, player) and price <= _PRICE_CAP[5]
 
 
-def _rule5_exit(match: MatchState, player: str) -> bool:
-    return not _has_returner_pressure(match, player)
-
-
-# ------------------------------------------------------------------
-# Rule 6 — Tiebreak mini-break: leads by 2+ points + price ≤ 55¢
-# ------------------------------------------------------------------
-
-def _tiebreak_lead(match: MatchState, player: str) -> int:
-    """Tiebreak point lead for player. Returns 0 on parse failure."""
-    try:
-        a, b = match.point_score.split(" - ")
-        tb_first, tb_second = int(a.strip()), int(b.strip())
-        return (tb_first - tb_second) if player == "first" else (tb_second - tb_first)
-    except (ValueError, AttributeError):
-        return 0
-
-
-def _rule6_entry(match: MatchState, player: str, price: float) -> bool:
-    return (
-        match.is_tiebreak
-        and _tiebreak_lead(match, player) >= 2
-        and price <= _PRICE_CAP[6]
-    )
-
-
-def _rule6_exit(match: MatchState, player: str) -> bool:
-    return match.is_tiebreak and _tiebreak_lead(match, player) < 2
-
-
-# ------------------------------------------------------------------
-# Rule 7 — Break confirmed: leads by 1 game early in set + price ≤ 75¢
-# Fires only at 0-0 (game boundary) when total set games ≤ 6.
-# ------------------------------------------------------------------
-
-def _rule7_entry(match: MatchState, player: str, price: float) -> bool:
-    total = match.games_first + match.games_second
-    return (
-        match.point_score == "0 - 0"
-        and not match.is_tiebreak
-        and match.game_lead(player) == 1
-        and total <= 6
-        and price <= _PRICE_CAP[7]
-    )
-
-
-def _rule7_exit(match: MatchState, player: str) -> bool:
-    return match.point_score == "0 - 0" and match.game_lead(player) < 1
+def _rule5_exit(
+    match: MatchState,
+    player: str,
+    price: float,
+    entry_price: float | None,
+    ticks: int,
+    no_pressure_ticks: int,
+) -> bool:
+    # Pressure-based: no BP/ADV/deuce pressure for 2 consecutive ticks
+    if no_pressure_ticks >= _PRESSURE_EXIT:
+        return True
+    if entry_price is not None:
+        move = price - entry_price
+        if move >= _PROFIT_TARGET:       # profit target hit
+            return True
+        if move <= -_STOP_LOSS:          # stop loss hit
+            return True
+        if ticks >= _TIME_EXIT_TICKS and move < _TIME_EXIT_MIN:  # no edge / late entry
+            return True
+    return False
 
 
 # ------------------------------------------------------------------

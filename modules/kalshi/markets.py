@@ -2,7 +2,7 @@ import logging
 import re
 
 from .client import KalshiClient
-from .models import KalshiMarket
+from .models import KalshiMarket, PriceInfo
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +15,12 @@ class MarketCache:
     def __init__(self, client: KalshiClient):
         self._client = client
         self._markets: list[KalshiMarket] = []
+        self._prev_yes_ask: dict[str, float] = {}   # ticker → yes_ask from last refresh
 
     async def refresh(self) -> None:
+        # Snapshot current prices before overwriting
+        prev = {m.ticker: m.yes_ask for m in self._markets}
+
         markets: list[KalshiMarket] = []
         for series in _TENNIS_SERIES:
             try:
@@ -31,22 +35,21 @@ class MarketCache:
             except Exception as e:
                 logger.error("Kalshi refresh failed for %s: %s", series, e)
 
+        self._prev_yes_ask = prev
         self._markets = markets
         logger.info("Kalshi cache: %d active tennis markets", len(markets))
 
     def get_prices(
         self, player1: str, player2: str
-    ) -> tuple[float | None, float | None]:
+    ) -> tuple[PriceInfo | None, PriceInfo | None]:
         """
         Each Kalshi tennis market covers ONE player (title = full name).
         Match each player's last name against market titles independently.
-        Returns (yes_ask_for_player1, yes_ask_for_player2).
+        Returns (PriceInfo_for_player1, PriceInfo_for_player2).
         """
-        price1 = self._find_price(player1)
-        price2 = self._find_price(player2)
-        return price1, price2
+        return self._find_price(player1), self._find_price(player2)
 
-    def _find_price(self, player: str) -> float | None:
+    def _find_price(self, player: str) -> PriceInfo | None:
         if not self._markets:
             return None
 
@@ -57,11 +60,13 @@ class MarketCache:
 
         for market in self._markets:
             if pattern.search(market.title):
+                prev  = self._prev_yes_ask.get(market.ticker)
+                spread = round(market.yes_ask + market.no_ask - 1.0, 4)
                 logger.debug(
-                    "Matched '%s' → '%s' (price %.2f)",
-                    player, market.title, market.yes_ask,
+                    "Matched '%s' → '%s' (price %.2f, spread %.2f)",
+                    player, market.title, market.yes_ask, spread,
                 )
-                return market.yes_ask
+                return PriceInfo(price=market.yes_ask, prev_price=prev, spread=spread)
 
         logger.debug("No Kalshi market found for player: %s", player)
         return None
