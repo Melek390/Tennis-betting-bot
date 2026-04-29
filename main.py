@@ -104,12 +104,14 @@ async def _kalshi_refresh_loop(cache: MarketCache) -> None:
 
 
 async def _heartbeat_loop(bot: TelegramBot, tennis: TennisAPIClient) -> None:
-    # Give the WebSocket time to connect and receive initial match data
     await asyncio.sleep(15)
     while True:
-        match_count = len(tennis.live_matches)
-        await bot.send_heartbeat(match_count)
-        logger.info("Heartbeat sent — %d live matches", match_count)
+        try:
+            match_count = len(tennis.live_matches)
+            await bot.send_heartbeat(match_count)
+            logger.info("Heartbeat sent — %d live matches", match_count)
+        except Exception as e:
+            logger.error("Heartbeat error: %s", e)
         await asyncio.sleep(3600)
 
 
@@ -117,11 +119,14 @@ async def _state_cleanup_loop(
     state_mgr: StateManager, tennis: TennisAPIClient
 ) -> None:
     while True:
-        await asyncio.sleep(300)  # every 5 minutes
-        tennis.cleanup_stale()
-        active = set(tennis.live_matches.keys())
-        state_mgr.cleanup(active)
-        logger.debug("State cleanup: %d active matches", len(active))
+        await asyncio.sleep(300)
+        try:
+            tennis.cleanup_stale()
+            active = set(tennis.live_matches.keys())
+            state_mgr.cleanup(active)
+            logger.debug("State cleanup: %d active matches", len(active))
+        except Exception as e:
+            logger.error("State cleanup error: %s", e)
 
 
 # ------------------------------------------------------------------
