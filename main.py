@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from modules.kalshi.client import KalshiClient
 from modules.kalshi.markets import MarketCache
 from modules.telegram.bot import TelegramBot
-from modules.telegram.state import STATE_MGR_KEY
 from modules.tennis_api.client import TennisAPIClient
 from modules.tennis_api.models import MatchState
 from rules import check_entry, check_exit, compact_score, entry_detail, entry_state_label, has_returner_pressure
@@ -85,15 +84,14 @@ async def _process_update(
         if signal == "entry":
             detail = entry_detail(match, player_name, price)
             await bot.send_entry(player_name, match.match_name, score, price,
-                                 match.match_id, player_side, detail, spread=info.spread)
+                                 detail, spread=info.spread)
         elif signal == "reentry":
             detail = entry_detail(match, player_name, price)
             await bot.send_reentry(player_name, match.match_name, score, price,
-                                   match.match_id, player_side, detail, spread=info.spread)
+                                   detail, spread=info.spread)
         elif signal == "exit":
             stats = state_mgr.get_position_stats(match.match_id, player_side)
             await bot.send_exit(player_name, match.match_name, score,
-                                match.match_id, player_side,
                                 exit_price=price, stats=stats, exit_reason=exit_reason)
 
 
@@ -154,8 +152,7 @@ async def main() -> None:
 
     bot = TelegramBot(token=token, chat_ids=chat_ids)
     state_mgr = StateManager()
-    bot.app.bot_data[STATE_MGR_KEY] = state_mgr
-    tennis = TennisAPIClient(api_key=tennis_key)
+tennis = TennisAPIClient(api_key=tennis_key)
 
     # Kalshi is optional until client provides credentials
     kalshi_cache: MarketCache | None = None

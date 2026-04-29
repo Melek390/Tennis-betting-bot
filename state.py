@@ -4,12 +4,9 @@ from enum import Enum
 
 
 class RuleState(Enum):
-    WATCHING          = "watching"
-    PENDING_ENTRY     = "pending_entry"
-    IN_POSITION       = "in_position"
-    PENDING_EXIT      = "pending_exit"
-    WATCHING_REENTRY  = "watching_reentry"
-    PENDING_REENTRY   = "pending_reentry"
+    WATCHING         = "watching"
+    IN_POSITION      = "in_position"
+    WATCHING_REENTRY = "watching_reentry"
 
 
 @dataclass
@@ -71,7 +68,10 @@ class StateManager:
         e = self._get(match_id, player)
 
         if e.state == RuleState.WATCHING and entry_met:
-            e.state = RuleState.PENDING_ENTRY
+            e.state = RuleState.IN_POSITION
+            e.position_confirmed_at = datetime.now(timezone.utc)
+            e.ticks_in_position = 0
+            e.no_pressure_ticks = 0
             e.entry_price = price
             e.entry_mid = entry_mid
             e.entry_timestamp = datetime.now(timezone.utc)
@@ -91,7 +91,7 @@ class StateManager:
             return "entry"
 
         if e.state == RuleState.IN_POSITION and exit_met:
-            e.state = RuleState.PENDING_EXIT
+            e.state = RuleState.WATCHING_REENTRY
             e.exit_price = price
             e.exit_mid = exit_mid
             e.exit_timestamp = datetime.now(timezone.utc)
@@ -100,7 +100,10 @@ class StateManager:
             return "exit"
 
         if e.state == RuleState.WATCHING_REENTRY and entry_met:
-            e.state = RuleState.PENDING_REENTRY
+            e.state = RuleState.IN_POSITION
+            e.position_confirmed_at = datetime.now(timezone.utc)
+            e.ticks_in_position = 0
+            e.no_pressure_ticks = 0
             e.entry_price = price
             e.entry_mid = entry_mid
             e.entry_timestamp = datetime.now(timezone.utc)
@@ -120,52 +123,6 @@ class StateManager:
             return "reentry"
 
         return None
-
-    # ------------------------------------------------------------------
-    # User-action transitions — called from Telegram button callbacks
-    # ------------------------------------------------------------------
-
-    def confirm_entry(self, match_id: str, player: str) -> None:
-        e = self._get(match_id, player)
-        if e.state == RuleState.PENDING_ENTRY:
-            e.state = RuleState.IN_POSITION
-            e.position_confirmed_at = datetime.now(timezone.utc)
-            e.ticks_in_position = 0
-            e.no_pressure_ticks = 0
-
-    def skip_entry(self, match_id: str, player: str) -> None:
-        e = self._get(match_id, player)
-        if e.state == RuleState.PENDING_ENTRY:
-            e.state = RuleState.WATCHING
-
-    def confirm_exit(self, match_id: str, player: str) -> None:
-        e = self._get(match_id, player)
-        if e.state == RuleState.PENDING_EXIT:
-            e.state = RuleState.WATCHING_REENTRY
-
-    def keep_position(self, match_id: str, player: str) -> None:
-        e = self._get(match_id, player)
-        if e.state == RuleState.PENDING_EXIT:
-            e.state = RuleState.IN_POSITION
-            e.exit_price = None
-            e.exit_mid = None
-            e.exit_timestamp = None
-            e.exit_point_score = ""
-            e.exit_reason_str = ""
-            e.post_exit_ticks = []
-
-    def confirm_reentry(self, match_id: str, player: str) -> None:
-        e = self._get(match_id, player)
-        if e.state == RuleState.PENDING_REENTRY:
-            e.state = RuleState.IN_POSITION
-            e.position_confirmed_at = datetime.now(timezone.utc)
-            e.ticks_in_position = 0
-            e.no_pressure_ticks = 0
-
-    def skip_reentry(self, match_id: str, player: str) -> None:
-        e = self._get(match_id, player)
-        if e.state == RuleState.PENDING_REENTRY:
-            e.state = RuleState.WATCHING_REENTRY
 
     def tick_position(
         self,
@@ -201,7 +158,7 @@ class StateManager:
     ) -> bool:
         """Collect one post-exit tick. Returns True when 2 ticks collected and log is ready."""
         e = self._get(match_id, player)
-        if e.state not in (RuleState.PENDING_EXIT, RuleState.WATCHING_REENTRY):
+        if e.state != RuleState.WATCHING_REENTRY:
             return False
         if e.log_sent or len(e.post_exit_ticks) >= 2:
             return False
