@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 class TelegramBot:
     def __init__(self, token: str, chat_ids: str):
-        # Accepts "id1,id2" or a single id
         self.chat_ids = [int(x.strip()) for x in str(chat_ids).split(",") if x.strip()]
         self._state = BotState()
         self.app = Application.builder().token(token).build()
@@ -22,8 +21,8 @@ class TelegramBot:
         main_router.setup(self.app)
 
     @property
-    def enabled_rules(self) -> dict[int, bool]:
-        return self._state.enabled_rules
+    def enabled(self) -> bool:
+        return self._state.enabled
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -56,47 +55,46 @@ class TelegramBot:
                 logger.error("Telegram send failed for %s: %s", chat_id, e)
 
     # ------------------------------------------------------------------
-    # Alert senders — match_id + player_side encode the state key so
-    # the user's button press can call the right StateManager method.
+    # Alert senders
     # ------------------------------------------------------------------
 
     async def send_entry(
-        self, rule: int, player: str, match: str, score: str, price: float,
+        self, player: str, match: str, score: str, price: float,
         match_id: str, player_side: str, detail: str = "", spread: float | None = None,
     ) -> None:
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("Confirmed entry",   callback_data=f"ce:{match_id}:{player_side}:{rule}"),
-            InlineKeyboardButton("I'm skipping this", callback_data=f"se:{match_id}:{player_side}:{rule}"),
+            InlineKeyboardButton("Confirmed entry",   callback_data=f"ce:{match_id}:{player_side}"),
+            InlineKeyboardButton("I'm skipping this", callback_data=f"se:{match_id}:{player_side}"),
         ]])
-        await self._send(alerts.entry_text(rule, player, match, score, price, detail, spread=spread), reply_markup=kb)
+        await self._send(alerts.entry_text(player, match, score, price, detail, spread=spread), reply_markup=kb)
 
     async def send_exit(
-        self, rule: int, player: str, match: str, score: str,
+        self, player: str, match: str, score: str,
         match_id: str, player_side: str,
         exit_price: float | None = None,
         stats: dict | None = None,
         exit_reason: str | None = None,
     ) -> None:
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("Confirmed exit",       callback_data=f"cx:{match_id}:{player_side}:{rule}"),
-            InlineKeyboardButton("Keeping my position",  callback_data=f"kx:{match_id}:{player_side}:{rule}"),
+            InlineKeyboardButton("Confirmed exit",      callback_data=f"cx:{match_id}:{player_side}"),
+            InlineKeyboardButton("Keeping my position", callback_data=f"kx:{match_id}:{player_side}"),
         ]])
-        await self._send(alerts.exit_text(rule, player, match, score,
+        await self._send(alerts.exit_text(player, match, score,
                                           exit_price=exit_price, stats=stats,
                                           exit_reason=exit_reason), reply_markup=kb)
 
     async def send_reentry(
-        self, rule: int, player: str, match: str, score: str, price: float,
+        self, player: str, match: str, score: str, price: float,
         match_id: str, player_side: str, detail: str = "", spread: float | None = None,
     ) -> None:
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("Confirmed re-entry",   callback_data=f"cr:{match_id}:{player_side}:{rule}"),
-            InlineKeyboardButton("I'm skipping this",    callback_data=f"sr:{match_id}:{player_side}:{rule}"),
+            InlineKeyboardButton("Confirmed re-entry", callback_data=f"cr:{match_id}:{player_side}"),
+            InlineKeyboardButton("I'm skipping this",  callback_data=f"sr:{match_id}:{player_side}"),
         ]])
-        await self._send(alerts.reentry_text(rule, player, match, score, price, detail, spread=spread), reply_markup=kb)
+        await self._send(alerts.reentry_text(player, match, score, price, detail, spread=spread), reply_markup=kb)
 
     async def send_heartbeat(self, match_count: int) -> None:
-        await self._send(alerts.heartbeat_text(match_count, self._state.enabled_rules))
+        await self._send(alerts.heartbeat_text(match_count, self._state.enabled))
 
     async def send_error(self, message: str) -> None:
         await self._send(alerts.error_text(message))

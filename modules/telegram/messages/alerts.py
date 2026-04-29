@@ -1,13 +1,5 @@
 from datetime import datetime, timezone
 
-_EXIT_REASONS: dict[int, str] = {
-    1: "Match point lost",
-    2: "Game lead dropped below 2",
-    3: "Game lead dropped below 2",
-    4: "Set 2 lead disappeared",
-    5: "Target / stop / time / pressure exit",
-}
-
 
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
@@ -26,7 +18,7 @@ def _diff(a: float | None, b: float | None) -> str:
 
 
 def entry_text(
-    rule: int, player: str, match: str, score: str, price: float,
+    player: str, match: str, score: str, price: float,
     detail: str = "", spread: float | None = None,
 ) -> str:
     price_line = f"<b>Price:</b> {_c(price)}"
@@ -34,7 +26,7 @@ def entry_text(
         mid = price - spread / 2
         price_line += f"  |  Mid: {_c(mid)}  |  Slippage: ~{round(spread / 2 * 100)}¢"
     return (
-        f"<b>ENTRY — Rule {rule}</b>\n"
+        f"<b>ENTRY — Rule 5</b>\n"
         f"<i>{detail}</i>\n\n"
         f"<b>Match:</b> {match}\n"
         f"<b>Player:</b> {player}\n"
@@ -45,22 +37,21 @@ def entry_text(
 
 
 def exit_text(
-    rule: int, player: str, match: str, score: str,
+    player: str, match: str, score: str,
     exit_price: float | None = None,
     stats: dict | None = None,
     exit_reason: str | None = None,
 ) -> str:
-    reason = exit_reason or _EXIT_REASONS.get(rule, "Condition no longer met")
+    reason = exit_reason or "Condition no longer met"
 
-    ep     = stats.get("entry_price")     if stats else None
-    e_ts   = stats.get("entry_timestamp") if stats else None
+    ep   = stats.get("entry_price")     if stats else None
+    e_ts = stats.get("entry_timestamp") if stats else None
 
     pnl = round((exit_price - ep) * 100) if (exit_price is not None and ep is not None) else None
     pnl_str = (f"+{pnl}¢" if pnl > 0 else f"{pnl}¢") if pnl is not None else "—"
 
-    # Base — applies to all rules
     text = (
-        f"<b>EXIT — Rule {rule}</b>\n\n"
+        f"<b>EXIT — Rule 5</b>\n\n"
         f"<b>Match:</b> {match}\n"
         f"<b>Player:</b> {player}\n"
         f"<b>Score:</b> {score}\n"
@@ -70,8 +61,7 @@ def exit_text(
         f"<b>P&L:</b>   {pnl_str}"
     )
 
-    # Rule 5 extras only
-    if rule == 5 and stats:
+    if stats:
         e_st   = stats.get("entry_state", "")
         spread = stats.get("entry_spread")
         ticks  = stats.get("price_after_tick", [])
@@ -88,7 +78,7 @@ def exit_text(
 
 
 def reentry_text(
-    rule: int, player: str, match: str, score: str, price: float,
+    player: str, match: str, score: str, price: float,
     detail: str = "", spread: float | None = None,
 ) -> str:
     price_line = f"<b>Price:</b> {_c(price)}"
@@ -96,7 +86,7 @@ def reentry_text(
         mid = price - spread / 2
         price_line += f"  |  Mid: {_c(mid)}  |  Slippage: ~{round(spread / 2 * 100)}¢"
     return (
-        f"<b>RE-ENTRY — Rule {rule}</b>\n"
+        f"<b>RE-ENTRY — Rule 5</b>\n"
         f"<i>{detail}</i>\n\n"
         f"<b>Match:</b> {match}\n"
         f"<b>Player:</b> {player}\n"
@@ -106,18 +96,15 @@ def reentry_text(
     )
 
 
-def heartbeat_text(match_count: int, enabled_rules: dict[int, bool]) -> str:
+def heartbeat_text(match_count: int, enabled: bool) -> str:
     matches_line = (
         f"{match_count} live match{'es' if match_count != 1 else ''}"
         if match_count else "No live matches"
     )
-    rules_line = "  ".join(
-        f"R{r}: {'ON' if on else 'OFF'}" for r, on in sorted(enabled_rules.items())
-    )
     return (
         f"<b>Heartbeat</b>\n\n"
         f"<b>Monitoring:</b> {matches_line}\n"
-        f"<b>Rules:</b> {rules_line}\n"
+        f"<b>Rule 5:</b> {'ON' if enabled else 'OFF'}\n"
         f"<i>{_now()}</i>"
     )
 

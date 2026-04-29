@@ -1,11 +1,9 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-STATE_KEY    = "bot_state"
+STATE_KEY     = "bot_state"
 STATE_MGR_KEY = "state_mgr"
 
 
 @dataclass
 class BotState:
-    enabled_rules: dict[int, bool] = field(
-        default_factory=lambda: {1: True, 2: True, 3: True, 4: True, 5: True}
-    )
+    enabled: bool = True   # Rule 5 on/off

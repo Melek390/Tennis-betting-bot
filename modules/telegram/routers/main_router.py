@@ -8,7 +8,7 @@ def setup(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(callbacks.show_main,       pattern="^main$"))
     app.add_handler(CallbackQueryHandler(callbacks.show_monitoring, pattern="^monitoring$"))
     app.add_handler(CallbackQueryHandler(callbacks.show_help,       pattern="^help$"))
-    app.add_handler(CallbackQueryHandler(callbacks.toggle_rule,     pattern=r"^toggle_[1-4]$"))
+    app.add_handler(CallbackQueryHandler(callbacks.toggle_rule,     pattern=r"^toggle_rule$"))
     # Entry / exit / re-entry confirmation buttons
     app.add_handler(CallbackQueryHandler(callbacks.confirm_entry,   pattern=r"^ce:"))
     app.add_handler(CallbackQueryHandler(callbacks.skip_entry,      pattern=r"^se:"))

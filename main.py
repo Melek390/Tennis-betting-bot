@@ -10,7 +10,7 @@ from modules.telegram.bot import TelegramBot
 from modules.telegram.state import STATE_MGR_KEY
 from modules.tennis_api.client import TennisAPIClient
 from modules.tennis_api.models import MatchState
-from rules import check_entry, check_exit, rule_detail, has_returner_pressure, rule5_state_label
+from rules import check_entry, check_exit, entry_detail, entry_state_label, has_returner_pressure
 from state import StateManager
 
 load_dotenv()
@@ -40,57 +40,45 @@ async def _process_update(
 
         price = info.price
 
-        for rule in range(1, 6):
-            if not bot.enabled_rules.get(rule, True):
-                continue
+        if not bot.enabled:
+            continue
 
-            if rule == 5:
-                entry_met = check_entry(
-                    rule, match, player_side, price,
-                    prev_price=info.prev_price,
-                    spread=info.spread,
-                )
-                ctx = state_mgr.get_exit_context(match.match_id, player_side, rule)
-                exit_reason = check_exit(rule, match, player_side, price=price, **ctx)
-            else:
-                entry_met   = check_entry(rule, match, player_side, price)
-                exit_reason = check_exit(rule, match, player_side)
+        entry_met   = check_entry(match, player_side, price,
+                                  prev_price=info.prev_price, spread=info.spread)
+        ctx         = state_mgr.get_exit_context(match.match_id, player_side)
+        exit_reason = check_exit(match, player_side, price=price, **ctx)
 
-            exit_met = exit_reason is not None
+        signal = state_mgr.process(
+            match.match_id, player_side,
+            entry_met=entry_met,
+            exit_met=exit_reason is not None,
+            price=price,
+            entry_state=entry_state_label(match) if entry_met else "",
+            entry_spread=info.spread if entry_met else None,
+        )
 
-            signal = state_mgr.process(
-                match.match_id, player_side, rule, entry_met, exit_met,
-                price=price,
-                entry_state=rule5_state_label(match) if (rule == 5 and entry_met) else "",
-                entry_spread=info.spread if (rule == 5 and entry_met) else None,
-            )
+        pressure = has_returner_pressure(match, player_side)
+        state_mgr.tick_position(match.match_id, player_side, pressure, price=price)
 
-            if rule == 5:
-                pressure = has_returner_pressure(match, player_side)
-                state_mgr.tick_position(match.match_id, player_side, rule, pressure, price=price)
+        if signal is None:
+            continue
 
-            if signal is None:
-                continue
+        player_name = match.player_name(player_side)
+        score       = match.score_summary
 
-            player_name = match.player_name(player_side)
-            score       = match.score_summary
-
-            if signal == "entry":
-                detail = rule_detail(rule, match, player_side, player_name, price)
-                await bot.send_entry(rule, player_name, match.match_name, score, price,
-                                     match.match_id, player_side, detail,
-                                     spread=info.spread if rule == 5 else None)
-            elif signal == "reentry":
-                detail = rule_detail(rule, match, player_side, player_name, price)
-                await bot.send_reentry(rule, player_name, match.match_name, score, price,
-                                       match.match_id, player_side, detail,
-                                       spread=info.spread if rule == 5 else None)
-            elif signal == "exit":
-                stats = state_mgr.get_position_stats(match.match_id, player_side, rule)
-                await bot.send_exit(rule, player_name, match.match_name, score,
-                                    match.match_id, player_side,
-                                    exit_price=price, stats=stats,
-                                    exit_reason=exit_reason)
+        if signal == "entry":
+            detail = entry_detail(match, player_name, price)
+            await bot.send_entry(player_name, match.match_name, score, price,
+                                 match.match_id, player_side, detail, spread=info.spread)
+        elif signal == "reentry":
+            detail = entry_detail(match, player_name, price)
+            await bot.send_reentry(player_name, match.match_name, score, price,
+                                   match.match_id, player_side, detail, spread=info.spread)
+        elif signal == "exit":
+            stats = state_mgr.get_position_stats(match.match_id, player_side)
+            await bot.send_exit(player_name, match.match_name, score,
+                                match.match_id, player_side,
+                                exit_price=price, stats=stats, exit_reason=exit_reason)
 
 
 # ------------------------------------------------------------------

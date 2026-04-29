@@ -1,15 +1,9 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from ..messages.menus import RULE_LABELS
 
-
-def build(enabled_rules: dict[int, bool]) -> InlineKeyboardMarkup:
-    rows = [
-        [InlineKeyboardButton(
-            f"{'✅' if enabled_rules[r] else '⬜'} Rule {r} — {RULE_LABELS[r]}",
-            callback_data=f"toggle_{r}",
-        )]
-        for r in range(1, 6)
-    ]
-    rows.append([InlineKeyboardButton("« Back to Main Menu", callback_data="main")])
-    return InlineKeyboardMarkup(rows)
+def build(enabled: bool) -> InlineKeyboardMarkup:
+    label = "✅ Rule 5 — Break Point / Advantage · ≤60¢" if enabled else "⬜ Rule 5 — Break Point / Advantage · ≤60¢"
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(label, callback_data="toggle_rule")],
+        [InlineKeyboardButton("« Back to Main Menu", callback_data="main")],
+    ])
