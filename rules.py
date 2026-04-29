@@ -80,15 +80,19 @@ def entry_state_label(match: MatchState) -> str:
     return f"Break Point ({ps})"
 
 
-def entry_detail(match: MatchState, player_name: str, price: float) -> str:
-    p   = int(round(price * 100))
-    cap = int(_PRICE_CAP * 100)
+def compact_score(match: MatchState) -> str:
+    """Returns 'S0–1 | G2–5 | 15–40 BP' style line for alerts."""
+    ps = match.point_score.replace(" - ", "–")
+    label = "AD" if "AD" in match.point_score else "BP"
     return (
-        f"{player_name} is returning | "
-        f"Break point / Advantage | "
-        f"Score {match.point_score} | "
-        f"Price {p}¢ ≤ {cap}¢"
+        f"S{match.sets_first}–{match.sets_second} | "
+        f"G{match.games_first}–{match.games_second} | "
+        f"{ps} {label}"
     )
+
+
+def entry_detail(match: MatchState, player_name: str, price: float) -> str:
+    return compact_score(match)
 
 
 def _has_returner_pressure(match: MatchState, player: str) -> bool:

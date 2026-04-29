@@ -5,33 +5,36 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
 
 def _fmt_ts(ts: datetime | None) -> str:
-    return ts.strftime("%H:%M:%S UTC") if ts else "—"
+    return ts.strftime("%H:%M:%S") if ts else "—"
 
 def _c(price: float | None) -> str:
     return f"{round(price * 100)}¢" if price is not None else "—"
 
-def _diff(a: float | None, b: float | None) -> str:
-    if a is None or b is None:
+def _pnl(exit_p: float | None, entry_p: float | None) -> str:
+    if exit_p is None or entry_p is None:
+        return "—"
+    d = round((exit_p - entry_p) * 100)
+    return f"+{d}¢" if d > 0 else f"{d}¢"
+
+def _slip(spread: float | None) -> str:
+    if spread is None:
         return ""
-    d = round((a - b) * 100)
-    return f"  (+{d}¢)" if d > 0 else f"  ({d}¢)" if d < 0 else "  (0¢)"
+    return f"  |  Slip: −{round(spread / 2 * 100)}¢"
 
 
 def entry_text(
     player: str, match: str, score: str, price: float,
     detail: str = "", spread: float | None = None,
 ) -> str:
-    price_line = f"<b>Price:</b> {_c(price)}"
+    mid_line = ""
     if spread is not None:
         mid = price - spread / 2
-        price_line += f"  |  Mid: {_c(mid)}  |  Slippage: ~{round(spread / 2 * 100)}¢"
+        mid_line = f"  |  Mid: {_c(mid)}{_slip(spread)}"
     return (
-        f"<b>ENTRY — Rule 5</b>\n"
-        f"<i>{detail}</i>\n\n"
-        f"<b>Match:</b> {match}\n"
-        f"<b>Player:</b> {player}\n"
-        f"<b>Score:</b> {score}\n"
-        f"{price_line}\n"
+        f"<b>R5 ENTRY</b> — {match}\n"
+        f"<i>{player} (returning)</i>\n"
+        f"{detail}\n"
+        f"Entry: {_c(price)}{mid_line}\n"
         f"<i>{_now()}</i>"
     )
 
@@ -42,58 +45,96 @@ def exit_text(
     stats: dict | None = None,
     exit_reason: str | None = None,
 ) -> str:
+    ep  = stats.get("entry_price")    if stats else None
+    ets = stats.get("entry_timestamp") if stats else None
     reason = exit_reason or "Condition no longer met"
 
-    ep   = stats.get("entry_price")     if stats else None
-    e_ts = stats.get("entry_timestamp") if stats else None
-
-    pnl = round((exit_price - ep) * 100) if (exit_price is not None and ep is not None) else None
-    pnl_str = (f"+{pnl}¢" if pnl > 0 else f"{pnl}¢") if pnl is not None else "—"
-
-    text = (
-        f"<b>EXIT — Rule 5</b>\n\n"
-        f"<b>Match:</b> {match}\n"
-        f"<b>Player:</b> {player}\n"
-        f"<b>Score:</b> {score}\n"
-        f"<b>Reason:</b> {reason}\n\n"
-        f"<b>Entry:</b> {_c(ep)} @ {_fmt_ts(e_ts)}\n"
-        f"<b>Exit:</b>  {_c(exit_price)} @ {_now()}\n"
-        f"<b>P&L:</b>   {pnl_str}"
+    return (
+        f"<b>R5 EXIT</b> — {match}\n"
+        f"<i>{player} (returning)</i>\n"
+        f"{score}\n"
+        f"Reason: {reason}\n"
+        f"Entry: {_c(ep)} @ {_fmt_ts(ets)}  →  Exit: {_c(exit_price)}\n"
+        f"P&L: <b>{_pnl(exit_price, ep)}</b>\n"
+        f"<i>{_now()}</i>"
     )
-
-    if stats:
-        e_st   = stats.get("entry_state", "")
-        spread = stats.get("entry_spread")
-        ticks  = stats.get("price_after_tick", [])
-
-        if e_st:
-            text += f"\n<b>State at entry:</b> {e_st}"
-        for i, tp in enumerate(ticks[:2], 1):
-            text += f"\n<b>Tick {i}:</b> {_c(tp)}{_diff(tp, ep)}"
-        if spread is not None and ep is not None:
-            mid = ep - spread / 2
-            text += f"\n<b>Mid at entry:</b> {_c(mid)}  |  Slippage: ~{round(spread/2*100)}¢"
-
-    return text
 
 
 def reentry_text(
     player: str, match: str, score: str, price: float,
     detail: str = "", spread: float | None = None,
 ) -> str:
-    price_line = f"<b>Price:</b> {_c(price)}"
+    mid_line = ""
     if spread is not None:
         mid = price - spread / 2
-        price_line += f"  |  Mid: {_c(mid)}  |  Slippage: ~{round(spread / 2 * 100)}¢"
+        mid_line = f"  |  Mid: {_c(mid)}{_slip(spread)}"
     return (
-        f"<b>RE-ENTRY — Rule 5</b>\n"
-        f"<i>{detail}</i>\n\n"
-        f"<b>Match:</b> {match}\n"
-        f"<b>Player:</b> {player}\n"
-        f"<b>Score:</b> {score}\n"
-        f"{price_line}\n"
+        f"<b>R5 RE-ENTRY</b> — {match}\n"
+        f"<i>{player} (returning)</i>\n"
+        f"{detail}\n"
+        f"Entry: {_c(price)}{mid_line}\n"
         f"<i>{_now()}</i>"
     )
+
+
+def log_text(player: str, match: str, log: dict) -> str:
+    ep   = log.get("entry_price")
+    em   = log.get("entry_mid")
+    ets  = log.get("entry_timestamp")
+    xp   = log.get("exit_price")
+    xm   = log.get("exit_mid")
+    xts  = log.get("exit_timestamp")
+    mae  = log.get("mae", 0.0)
+    mfe  = log.get("mfe", 0.0)
+    reason = log.get("exit_reason_str", "")
+    ticks  = log.get("tick_history", [])       # [(price, mid, ps), ...]
+    pticks = log.get("post_exit_ticks", [])    # [(price, mid, ps), ...]
+    entry_ps = log.get("entry_point_score", "")
+
+    def _row(label: str, price: float | None, mid: float | None, ps: str, suffix: str = "") -> str:
+        mid_str = f" (mid {_c(mid)})" if mid is not None else ""
+        ps_str  = f"  {ps}" if ps else ""
+        return f"<code>{label:<4}</code> {_c(price)}{mid_str}{ps_str}{suffix}"
+
+    lines = [
+        f"<b>R5 LOG</b> — {match}",
+        f"<i>{player}</i>",
+        "",
+        "<b>Price path:</b>",
+        _row("t0", ep, em, entry_ps),
+    ]
+
+    for i, (p, m, ps) in enumerate(ticks, 1):
+        lines.append(_row(f"t{i}", p, m, ps))
+
+    xps = log.get("exit_point_score", "")
+    lines.append(_row("exit", xp, xm, xps, "  ← exit"))
+
+    for i, (p, m, ps) in enumerate(pticks, 1):
+        lines.append(_row(f"t+{i}", p, m, ps))
+
+    mae_str = f"{round(mae * 100)}¢" if mae < 0 else f"+{round(mae * 100)}¢"
+    mfe_str = f"+{round(mfe * 100)}¢"
+
+    lines += [
+        "",
+        f"Entry: {_c(ep)} @ {_fmt_ts(ets)}  |  Exit: {_c(xp)} @ {_fmt_ts(xts)}",
+        f"P&L: <b>{_pnl(xp, ep)}</b>  |  MAE: {mae_str}  |  MFE: {mfe_str}",
+    ]
+
+    if pticks:
+        post_moves = [(p - ep) * 100 for p, _, _ in pticks if ep is not None]
+        best  = round(max(post_moves)) if post_moves else None
+        worst = round(min(post_moves)) if post_moves else None
+        if best is not None:
+            b_str = f"+{best}¢" if best >= 0 else f"{best}¢"
+            w_str = f"+{worst}¢" if worst >= 0 else f"{worst}¢"
+            lines.append(f"Post-exit: best {b_str}, worst {w_str}")
+
+    if reason:
+        lines.append(f"<i>Reason: {reason}</i>")
+
+    return "\n".join(lines)
 
 
 def heartbeat_text(match_count: int, enabled: bool) -> str:

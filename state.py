@@ -16,16 +16,28 @@ class RuleState(Enum):
 class _Entry:
     state: RuleState = RuleState.WATCHING
     entry_price: float | None = None
+    entry_mid: float | None = None
     entry_timestamp: datetime | None = None
     entry_state: str = ""
+    entry_point_score: str = ""
     entry_spread: float | None = None
     position_confirmed_at: datetime | None = None
     ticks_in_position: int = 0
     no_pressure_ticks: int = 0
-    price_after_tick: list = field(default_factory=list)
+    tick_history: list = field(default_factory=list)   # (price, mid, point_score)
+    mae: float = 0.0
+    mfe: float = 0.0
+    # Exit snapshot
+    exit_price: float | None = None
+    exit_mid: float | None = None
+    exit_timestamp: datetime | None = None
+    exit_point_score: str = ""
+    exit_reason_str: str = ""
+    # Post-exit log
+    post_exit_ticks: list = field(default_factory=list)  # (price, mid, point_score)
+    log_sent: bool = False
 
 
-# (match_id, player_side) → _Entry
 _StateKey = tuple[str, str]
 
 
@@ -49,6 +61,11 @@ class StateManager:
         price: float | None = None,
         entry_state: str = "",
         entry_spread: float | None = None,
+        entry_mid: float | None = None,
+        entry_point_score: str = "",
+        exit_mid: float | None = None,
+        exit_point_score: str = "",
+        exit_reason_str: str = "",
     ) -> str | None:
         """Returns 'entry', 'exit', 'reentry', or None."""
         e = self._get(match_id, player)
@@ -56,23 +73,50 @@ class StateManager:
         if e.state == RuleState.WATCHING and entry_met:
             e.state = RuleState.PENDING_ENTRY
             e.entry_price = price
+            e.entry_mid = entry_mid
             e.entry_timestamp = datetime.now(timezone.utc)
             e.entry_state = entry_state
+            e.entry_point_score = entry_point_score
             e.entry_spread = entry_spread
-            e.price_after_tick = []
+            e.tick_history = []
+            e.mae = 0.0
+            e.mfe = 0.0
+            e.exit_price = None
+            e.exit_mid = None
+            e.exit_timestamp = None
+            e.exit_point_score = ""
+            e.exit_reason_str = ""
+            e.post_exit_ticks = []
+            e.log_sent = False
             return "entry"
 
         if e.state == RuleState.IN_POSITION and exit_met:
             e.state = RuleState.PENDING_EXIT
+            e.exit_price = price
+            e.exit_mid = exit_mid
+            e.exit_timestamp = datetime.now(timezone.utc)
+            e.exit_point_score = exit_point_score
+            e.exit_reason_str = exit_reason_str
             return "exit"
 
         if e.state == RuleState.WATCHING_REENTRY and entry_met:
             e.state = RuleState.PENDING_REENTRY
             e.entry_price = price
+            e.entry_mid = entry_mid
             e.entry_timestamp = datetime.now(timezone.utc)
             e.entry_state = entry_state
+            e.entry_point_score = entry_point_score
             e.entry_spread = entry_spread
-            e.price_after_tick = []
+            e.tick_history = []
+            e.mae = 0.0
+            e.mfe = 0.0
+            e.exit_price = None
+            e.exit_mid = None
+            e.exit_timestamp = None
+            e.exit_point_score = ""
+            e.exit_reason_str = ""
+            e.post_exit_ticks = []
+            e.log_sent = False
             return "reentry"
 
         return None
@@ -103,6 +147,12 @@ class StateManager:
         e = self._get(match_id, player)
         if e.state == RuleState.PENDING_EXIT:
             e.state = RuleState.IN_POSITION
+            e.exit_price = None
+            e.exit_mid = None
+            e.exit_timestamp = None
+            e.exit_point_score = ""
+            e.exit_reason_str = ""
+            e.post_exit_ticks = []
 
     def confirm_reentry(self, match_id: str, player: str) -> None:
         e = self._get(match_id, player)
@@ -118,18 +168,48 @@ class StateManager:
             e.state = RuleState.WATCHING_REENTRY
 
     def tick_position(
-        self, match_id: str, player: str, has_pressure: bool, price: float | None = None
+        self,
+        match_id: str,
+        player: str,
+        has_pressure: bool,
+        price: float | None = None,
+        mid: float | None = None,
+        point_score: str = "",
     ) -> None:
         e = self._get(match_id, player)
         if e.state != RuleState.IN_POSITION:
             return
         e.ticks_in_position += 1
-        if price is not None and len(e.price_after_tick) < 2:
-            e.price_after_tick.append(price)
+        if price is not None and len(e.tick_history) < 2:
+            e.tick_history.append((price, mid, point_score))
+        if price is not None and e.entry_price is not None:
+            move = price - e.entry_price
+            e.mae = min(e.mae, move)
+            e.mfe = max(e.mfe, move)
         if has_pressure:
             e.no_pressure_ticks = 0
         else:
             e.no_pressure_ticks += 1
+
+    def tick_post_exit(
+        self,
+        match_id: str,
+        player: str,
+        price: float,
+        mid: float | None,
+        point_score: str = "",
+    ) -> bool:
+        """Collect one post-exit tick. Returns True when 2 ticks collected and log is ready."""
+        e = self._get(match_id, player)
+        if e.state not in (RuleState.PENDING_EXIT, RuleState.WATCHING_REENTRY):
+            return False
+        if e.log_sent or len(e.post_exit_ticks) >= 2:
+            return False
+        e.post_exit_ticks.append((price, mid, point_score))
+        return len(e.post_exit_ticks) >= 2
+
+    def mark_log_sent(self, match_id: str, player: str) -> None:
+        self._get(match_id, player).log_sent = True
 
     def get_exit_context(self, match_id: str, player: str) -> dict:
         e = self._get(match_id, player)
@@ -150,7 +230,26 @@ class StateManager:
             "entry_timestamp":  e.entry_timestamp,
             "entry_state":      e.entry_state,
             "entry_spread":     e.entry_spread,
-            "price_after_tick": list(e.price_after_tick),
+            "price_after_tick": [t[0] for t in e.tick_history],
+        }
+
+    def get_log_data(self, match_id: str, player: str) -> dict:
+        e = self._get(match_id, player)
+        return {
+            "entry_price":       e.entry_price,
+            "entry_mid":         e.entry_mid,
+            "entry_timestamp":   e.entry_timestamp,
+            "entry_point_score": e.entry_point_score,
+            "entry_spread":      e.entry_spread,
+            "tick_history":      list(e.tick_history),
+            "mae":               e.mae,
+            "mfe":               e.mfe,
+            "exit_price":        e.exit_price,
+            "exit_mid":          e.exit_mid,
+            "exit_timestamp":    e.exit_timestamp,
+            "exit_point_score":  e.exit_point_score,
+            "exit_reason_str":   e.exit_reason_str,
+            "post_exit_ticks":   list(e.post_exit_ticks),
         }
 
     # ------------------------------------------------------------------

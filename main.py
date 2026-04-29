@@ -10,7 +10,7 @@ from modules.telegram.bot import TelegramBot
 from modules.telegram.state import STATE_MGR_KEY
 from modules.tennis_api.client import TennisAPIClient
 from modules.tennis_api.models import MatchState
-from rules import check_entry, check_exit, entry_detail, entry_state_label, has_returner_pressure
+from rules import check_entry, check_exit, compact_score, entry_detail, entry_state_label, has_returner_pressure
 from state import StateManager
 
 load_dotenv()
@@ -39,6 +39,8 @@ async def _process_update(
             continue
 
         price = info.price
+        mid   = (price - info.spread / 2) if info.spread is not None else None
+        ps    = match.point_score
 
         if not bot.enabled:
             continue
@@ -55,16 +57,30 @@ async def _process_update(
             price=price,
             entry_state=entry_state_label(match) if entry_met else "",
             entry_spread=info.spread if entry_met else None,
+            entry_mid=mid if entry_met else None,
+            entry_point_score=ps if entry_met else "",
+            exit_mid=mid if exit_reason else None,
+            exit_point_score=ps if exit_reason else "",
+            exit_reason_str=exit_reason or "",
         )
 
         pressure = has_returner_pressure(match, player_side)
-        state_mgr.tick_position(match.match_id, player_side, pressure, price=price)
+        state_mgr.tick_position(match.match_id, player_side, pressure,
+                                price=price, mid=mid, point_score=ps)
+
+        # Post-exit tick collection — fires 2 ticks after exit is signalled
+        log_ready = state_mgr.tick_post_exit(match.match_id, player_side, price, mid, ps)
+
+        player_name = match.player_name(player_side)
+        score       = compact_score(match)
+
+        if log_ready:
+            log_data = state_mgr.get_log_data(match.match_id, player_side)
+            state_mgr.mark_log_sent(match.match_id, player_side)
+            await bot.send_log(player_name, match.match_name, log_data)
 
         if signal is None:
             continue
-
-        player_name = match.player_name(player_side)
-        score       = match.score_summary
 
         if signal == "entry":
             detail = entry_detail(match, player_name, price)
