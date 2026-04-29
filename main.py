@@ -152,7 +152,7 @@ async def main() -> None:
 
     bot = TelegramBot(token=token, chat_ids=chat_ids)
     state_mgr = StateManager()
-tennis = TennisAPIClient(api_key=tennis_key)
+    tennis = TennisAPIClient(api_key=tennis_key)
 
     # Kalshi is optional until client provides credentials
     kalshi_cache: MarketCache | None = None
