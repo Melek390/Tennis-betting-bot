@@ -12,7 +12,9 @@ Original client rules — do NOT change without client approval:
 from modules.tennis_api.models import MatchState
 
 # Price cap per rule — single source of truth used in checks AND alert detail text
-_PRICE_CAP = {1: 0.75, 2: 0.65, 3: 0.62, 4: 0.58, 5: 0.60}
+_PRICE_CAP   = {1: 0.75, 2: 0.65, 3: 0.62, 4: 0.58, 5: 0.60}
+# Minimum price — entries below this are skipped (not enough room for a meaningful move)
+_PRICE_FLOOR = 0.10
 
 
 def check_entry(
@@ -76,7 +78,7 @@ def rule5_state_label(match: MatchState) -> str:
 # ------------------------------------------------------------------
 
 def _rule1_entry(match: MatchState, player: str, price: float) -> bool:
-    return match.has_match_point(player) and price <= _PRICE_CAP[1]
+    return match.has_match_point(player) and _PRICE_FLOOR <= price <= _PRICE_CAP[1]
 
 
 def _rule1_exit(match: MatchState, player: str) -> bool:
@@ -96,7 +98,7 @@ def _rule2_entry(match: MatchState, player: str, price: float) -> bool:
         and match.current_set == 2
         and match.game_lead(player) >= 2
         and not match.is_tiebreak
-        and price <= _PRICE_CAP[2]
+        and _PRICE_FLOOR <= price <= _PRICE_CAP[2]
     )
 
 
@@ -117,7 +119,7 @@ def _rule3_entry(match: MatchState, player: str, price: float) -> bool:
         and match.current_set == 3
         and match.game_lead(player) >= 2
         and not match.is_tiebreak
-        and price <= _PRICE_CAP[3]
+        and _PRICE_FLOOR <= price <= _PRICE_CAP[3]
     )
 
 
@@ -139,7 +141,7 @@ def _rule4_entry(match: MatchState, player: str, price: float) -> bool:
         and match.current_set == 2
         and match.game_lead(player) >= 1
         and not match.is_tiebreak
-        and price <= _PRICE_CAP[4]
+        and _PRICE_FLOOR <= price <= _PRICE_CAP[4]
     )
 
 
@@ -234,7 +236,7 @@ def _rule5_entry(
         return False
     if prev_price is not None and abs(price - prev_price) > _JUMP_THRESHOLD:
         return False
-    return _has_returner_pressure(match, player) and price <= _PRICE_CAP[5]
+    return _has_returner_pressure(match, player) and _PRICE_FLOOR <= price <= _PRICE_CAP[5]
 
 
 def _rule5_exit(
