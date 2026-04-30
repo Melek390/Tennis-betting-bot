@@ -186,7 +186,16 @@ async def main() -> None:
 
     logger.info("Connecting to Tennis API WebSocket...")
     try:
-        await tennis.run()
+        while True:
+            try:
+                await tennis.run()
+                logger.warning("Tennis WebSocket exited cleanly — reconnecting in 10s")
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                raise
+            except Exception as e:
+                logger.error("Tennis WebSocket error: %s — reconnecting in 10s", e)
+                await bot.send_error(f"WebSocket disconnected: {e}\nReconnecting in 10s...")
+            await asyncio.sleep(10)
     except (KeyboardInterrupt, asyncio.CancelledError):
         pass
     finally:
