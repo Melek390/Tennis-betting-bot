@@ -62,9 +62,9 @@ class MarketCache:
             if pattern.search(market.title):
                 prev  = self._prev_yes_ask.get(market.ticker)
                 spread = round(market.yes_ask + market.no_ask - 1.0, 4)
-                logger.debug(
-                    "Matched '%s' → '%s' (price %.2f, spread %.2f)",
-                    player, market.title, market.yes_ask, spread,
+                logger.info(
+                    "Kalshi match: '%s' → ticker=%s title='%s' price=%.2f spread=%.2f",
+                    player, market.ticker, market.title, market.yes_ask, spread,
                 )
                 return PriceInfo(price=market.yes_ask, prev_price=prev, spread=spread)
 
