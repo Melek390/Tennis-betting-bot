@@ -99,6 +99,10 @@ class StateManager:
             e.exit_timestamp = datetime.now(timezone.utc)
             e.exit_point_score = exit_point_score
             e.exit_reason_str = exit_reason_str
+            if price is not None and e.entry_price is not None:
+                move = price - e.entry_price
+                e.mae = min(e.mae, move)
+                e.mfe = max(e.mfe, move)
             return "exit"
 
         if e.state == RuleState.WATCHING_REENTRY and entry_met:
