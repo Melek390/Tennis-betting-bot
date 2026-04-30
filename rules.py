@@ -80,14 +80,25 @@ def entry_state_label(match: MatchState) -> str:
     return f"Break Point ({ps})"
 
 
+_BP_RAW = frozenset({"0 - 40", "15 - 40", "30 - 40", "40 - 0", "40 - 15", "40 - 30"})
+
+
+def fmt_point_score(ps: str) -> str:
+    """Format raw point score: '30 - 40' → '30–40 BP', '0 - 0' → '0–0'."""
+    formatted = ps.replace(" - ", "–")
+    if "AD" in ps:
+        return f"{formatted} AD"
+    if ps in _BP_RAW:
+        return f"{formatted} BP"
+    return formatted
+
+
 def compact_score(match: MatchState) -> str:
     """Returns 'S0–1 | G2–5 | 15–40 BP' style line for alerts."""
-    ps = match.point_score.replace(" - ", "–")
-    label = "AD" if "AD" in match.point_score else "BP"
     return (
         f"S{match.sets_first}–{match.sets_second} | "
         f"G{match.games_first}–{match.games_second} | "
-        f"{ps} {label}"
+        f"{fmt_point_score(match.point_score)}"
     )
 
 

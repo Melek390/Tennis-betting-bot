@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from rules import fmt_point_score
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
@@ -93,7 +95,7 @@ def log_text(player: str, match: str, log: dict) -> str:
 
     def _row(label: str, price: float | None, mid: float | None, ps: str, suffix: str = "") -> str:
         mid_str = f" (mid {_c(mid)})" if mid is not None else ""
-        ps_str  = f"  {ps}" if ps else ""
+        ps_str  = f"  {fmt_point_score(ps)}" if ps else ""
         return f"<code>{label:<4}</code> {_c(price)}{mid_str}{ps_str}{suffix}"
 
     lines = [

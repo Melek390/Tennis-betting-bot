@@ -32,6 +32,7 @@ class _Entry:
     exit_reason_str: str = ""
     # Post-exit log
     post_exit_ticks: list = field(default_factory=list)  # (price, mid, point_score)
+    last_post_exit_tick_at: datetime | None = None
     log_sent: bool = False
 
 
@@ -87,6 +88,7 @@ class StateManager:
             e.exit_point_score = ""
             e.exit_reason_str = ""
             e.post_exit_ticks = []
+            e.last_post_exit_tick_at = None
             e.log_sent = False
             return "entry"
 
@@ -148,6 +150,8 @@ class StateManager:
         else:
             e.no_pressure_ticks += 1
 
+    _POST_EXIT_TICK_INTERVAL = 25.0  # seconds between post-exit ticks
+
     def tick_post_exit(
         self,
         match_id: str,
@@ -156,13 +160,19 @@ class StateManager:
         mid: float | None,
         point_score: str = "",
     ) -> bool:
-        """Collect one post-exit tick. Returns True when 2 ticks collected and log is ready."""
+        """Collect one post-exit tick (rate-limited to ~30s apart). Returns True when 2 ticks collected."""
         e = self._get(match_id, player)
         if e.state != RuleState.WATCHING_REENTRY:
             return False
         if e.log_sent or len(e.post_exit_ticks) >= 2:
             return False
+        now = datetime.now(timezone.utc)
+        if e.last_post_exit_tick_at is not None:
+            elapsed = (now - e.last_post_exit_tick_at).total_seconds()
+            if elapsed < self._POST_EXIT_TICK_INTERVAL:
+                return False
         e.post_exit_ticks.append((price, mid, point_score))
+        e.last_post_exit_tick_at = now
         return len(e.post_exit_ticks) >= 2
 
     def mark_log_sent(self, match_id: str, player: str) -> None:
