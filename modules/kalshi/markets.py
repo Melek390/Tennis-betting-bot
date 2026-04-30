@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 
 from .client import KalshiClient
 from .models import KalshiMarket, PriceInfo
@@ -24,9 +25,16 @@ class MarketCache:
         markets: list[KalshiMarket] = []
         for series in _TENNIS_SERIES:
             try:
+                # Only fetch markets that close from the start of today onward,
+                # preventing stale unsettled markets from previous days clogging the cache.
+                today_start = int(time.time()) - (int(time.time()) % 86400)
                 data = await self._client.get(
                     "/markets",
-                    params={"series_ticker": series, "limit": 1000},
+                    params={
+                        "series_ticker": series,
+                        "limit": 1000,
+                        "min_close_ts": today_start,
+                    },
                 )
                 for m in data.get("markets", []):
                     market = _parse_market(m)
@@ -44,31 +52,45 @@ class MarketCache:
     ) -> tuple[PriceInfo | None, PriceInfo | None]:
         """
         Each Kalshi tennis market covers ONE player (title = full name).
-        Match each player's last name against market titles independently.
+        Match each player's last name against market titles, and cross-check
+        the opponent's last name abbreviation against the ticker to avoid
+        hitting stale markets from different matches.
         Returns (PriceInfo_for_player1, PriceInfo_for_player2).
         """
-        return self._find_price(player1), self._find_price(player2)
+        return self._find_price(player1, player2), self._find_price(player2, player1)
 
-    def _find_price(self, player: str) -> PriceInfo | None:
+    def _find_price(self, player: str, opponent: str = "") -> PriceInfo | None:
         if not self._markets:
             return None
 
         last_name = _last_name(player)
+        opp_abbr  = _last_name(opponent).upper()[:3] if opponent else ""
         # Word-boundary match: "Martineau" must appear as a whole word,
         # not as a substring of "Martin" inside "Martin Damm Jr".
         pattern = re.compile(r"\b" + re.escape(last_name) + r"\b", re.IGNORECASE)
 
         for market in self._markets:
-            if pattern.search(market.title):
-                prev  = self._prev_yes_ask.get(market.ticker)
-                spread = round(market.yes_ask + market.no_ask - 1.0, 4)
-                logger.info(
-                    "Kalshi match: '%s' → ticker=%s title='%s' price=%.2f spread=%.2f",
-                    player, market.ticker, market.title, market.yes_ask, spread,
+            if not pattern.search(market.title):
+                continue
+            # Cross-check: opponent's 3-letter abbreviation must appear in the ticker.
+            # This prevents matching a stale market from a different match (e.g. an
+            # unsettled April 22 Berrettini/Collignon market when the live match is
+            # Berrettini vs Navone, which may not be covered at all).
+            if opp_abbr and opp_abbr not in market.ticker.upper():
+                logger.debug(
+                    "Kalshi skip: '%s' ticker=%s — opponent '%s' (%s) not in ticker",
+                    player, market.ticker, opponent, opp_abbr,
                 )
-                return PriceInfo(price=market.yes_ask, prev_price=prev, spread=spread)
+                continue
+            prev  = self._prev_yes_ask.get(market.ticker)
+            spread = round(market.yes_ask + market.no_ask - 1.0, 4)
+            logger.info(
+                "Kalshi match: '%s' → ticker=%s title='%s' price=%.2f spread=%.2f",
+                player, market.ticker, market.title, market.yes_ask, spread,
+            )
+            return PriceInfo(price=market.yes_ask, prev_price=prev, spread=spread)
 
-        logger.debug("No Kalshi market found for player: %s", player)
+        logger.debug("No Kalshi market found for player: %s (opponent: %s)", player, opponent)
         return None
 
 
