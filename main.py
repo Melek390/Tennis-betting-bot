@@ -9,7 +9,7 @@ from modules.kalshi.markets import MarketCache
 from modules.telegram.bot import TelegramBot
 from modules.tennis_api.client import TennisAPIClient
 from modules.tennis_api.models import MatchState
-from rules import check_entry, check_exit, compact_score, entry_detail, entry_state_label, has_returner_pressure
+from rules import check_entry, check_exit, compact_score, entry_detail, entry_state_label
 from state import StateManager
 
 load_dotenv()
@@ -63,8 +63,7 @@ async def _process_update(
             exit_reason_str=exit_reason or "",
         )
 
-        pressure = has_returner_pressure(match, player_side)
-        state_mgr.tick_position(match.match_id, player_side, pressure,
+        state_mgr.tick_position(match.match_id, player_side,
                                 price=price, mid=mid, point_score=ps)
 
         # Post-exit tick collection — fires 2 ticks after exit is signalled

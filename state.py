@@ -18,9 +18,7 @@ class _Entry:
     entry_state: str = ""
     entry_point_score: str = ""
     entry_spread: float | None = None
-    position_confirmed_at: datetime | None = None
     ticks_in_position: int = 0
-    no_pressure_ticks: int = 0
     tick_history: list = field(default_factory=list)   # (price, mid, point_score)
     mae: float = 0.0
     mfe: float = 0.0
@@ -70,9 +68,7 @@ class StateManager:
 
         if e.state == RuleState.WATCHING and entry_met:
             e.state = RuleState.IN_POSITION
-            e.position_confirmed_at = datetime.now(timezone.utc)
             e.ticks_in_position = 0
-            e.no_pressure_ticks = 0
             e.entry_price = price
             e.entry_mid = entry_mid
             e.entry_timestamp = datetime.now(timezone.utc)
@@ -107,9 +103,7 @@ class StateManager:
 
         if e.state == RuleState.WATCHING_REENTRY and entry_met:
             e.state = RuleState.IN_POSITION
-            e.position_confirmed_at = datetime.now(timezone.utc)
             e.ticks_in_position = 0
-            e.no_pressure_ticks = 0
             e.entry_price = price
             e.entry_mid = entry_mid
             e.entry_timestamp = datetime.now(timezone.utc)
@@ -134,7 +128,6 @@ class StateManager:
         self,
         match_id: str,
         player: str,
-        has_pressure: bool,
         price: float | None = None,
         mid: float | None = None,
         point_score: str = "",
@@ -149,10 +142,6 @@ class StateManager:
             move = price - e.entry_price
             e.mae = min(e.mae, move)
             e.mfe = max(e.mfe, move)
-        if has_pressure:
-            e.no_pressure_ticks = 0
-        else:
-            e.no_pressure_ticks += 1
 
     _POST_EXIT_TICK_INTERVAL = 25.0  # seconds between post-exit ticks
 
@@ -164,7 +153,7 @@ class StateManager:
         mid: float | None,
         point_score: str = "",
     ) -> bool:
-        """Collect one post-exit tick (rate-limited to ~30s apart). Returns True when 2 ticks collected."""
+        """Collect one post-exit tick (rate-limited to ~25s apart). Returns True when 2 ticks collected."""
         e = self._get(match_id, player)
         if e.state != RuleState.WATCHING_REENTRY:
             return False
@@ -184,14 +173,9 @@ class StateManager:
 
     def get_exit_context(self, match_id: str, player: str) -> dict:
         e = self._get(match_id, player)
-        if e.position_confirmed_at is not None:
-            elapsed = (datetime.now(timezone.utc) - e.position_confirmed_at).total_seconds()
-        else:
-            elapsed = 0.0
         return {
-            "entry_price":       e.entry_price,
-            "elapsed_seconds":   elapsed,
-            "no_pressure_ticks": e.no_pressure_ticks,
+            "entry_price":        e.entry_price,
+            "updates_since_entry": e.ticks_in_position,
         }
 
     def get_position_stats(self, match_id: str, player: str) -> dict:

@@ -3,17 +3,14 @@ from modules.tennis_api.models import MatchState
 _PRICE_CAP   = 0.60
 _PRICE_FLOOR = 0.10
 
-_JUMP_THRESHOLD    = 0.07
-_SPREAD_MAX        = 0.05
+_JUMP_THRESHOLD = 0.07
+_SPREAD_MAX     = 0.05
 
-_FAST_PROFIT_TARGET = 0.08   # exit at +8¢ if move happens within first Kalshi cycle
-_FAST_PROFIT_WINDOW = 30.0   # seconds — first Kalshi refresh window
-_EXTENDED_TARGET    = 0.14   # hold to +14¢ if move develops slowly after first cycle
-_STOP_LOSS          = 0.06   # hard stop at -6¢...
-_STOP_HOLD_WINDOW   = 30.0   # ...but hold if pressure still active within first 30s
-_TIME_EXIT_SECONDS  = 90
-_TIME_EXIT_MIN      = 0.04
-_PRESSURE_EXIT      = 2
+_HARD_STOP           = 0.10   # hard stop at -10¢ regardless of context
+_FAST_FAILURE_STOP   = 0.06   # early stop at -6¢ if move stalls (> 2 ticks in)
+_FAST_FAILURE_TICKS  = 2      # updates_since_entry threshold for fast failure
+_FAST_PROFIT         = 0.08   # take profit at +8¢ if within first 2 ticks
+_FAST_PROFIT_TICKS   = 1      # updates_since_entry threshold for fast profit
 
 # Break-point scores when first player serves (second is returner with 40)
 _BP_SECOND_RETURNS = frozenset({"0 - 40", "15 - 40", "30 - 40"})
@@ -40,37 +37,31 @@ def check_exit(
     player: str,
     price: float = 0.0,
     entry_price: float | None = None,
-    elapsed_seconds: float = 0.0,
-    no_pressure_ticks: int = 0,
+    updates_since_entry: int = 0,
 ) -> str | None:
     """Returns exit reason string if exit condition is met, None otherwise."""
-    if no_pressure_ticks >= _PRESSURE_EXIT:
-        return "Break point pressure gone"
-    if entry_price is not None:
-        move = price - entry_price
+    # 1. Structural exit — pressure gone means the trade thesis is dead
+    if not _has_returner_pressure(match, player):
+        return "Pressure gone"
 
-        # Profit — time-aware split
-        if elapsed_seconds <= _FAST_PROFIT_WINDOW and move >= _FAST_PROFIT_TARGET:
-            return f"Fast profit (+{round(move*100)}¢)"
-        if elapsed_seconds > _FAST_PROFIT_WINDOW and move >= _EXTENDED_TARGET:
-            return f"Profit target hit (+{round(move*100)}¢)"
+    if entry_price is None:
+        return None
 
-        # Context-aware stop loss
-        # Hold through shakeout if pressure is still active and entry is fresh
-        if move <= -_STOP_LOSS:
-            if no_pressure_ticks == 0 and elapsed_seconds <= _STOP_HOLD_WINDOW:
-                pass
-            else:
-                return f"Stop loss hit ({round(move*100)}¢)"
+    pnl = price - entry_price
 
-        # No progress
-        if elapsed_seconds >= _TIME_EXIT_SECONDS and move < _TIME_EXIT_MIN:
-            return f"No movement after {round(elapsed_seconds)}s"
+    # 2. Hard stop — always
+    if pnl <= -_HARD_STOP:
+        return f"Stop loss ({round(pnl * 100)}¢)"
+
+    # 3. Fast failure — price moved against us and isn't recovering
+    if pnl <= -_FAST_FAILURE_STOP and updates_since_entry > _FAST_FAILURE_TICKS:
+        return f"Fast failure ({round(pnl * 100)}¢)"
+
+    # 4. Fast profit — scalp immediately if move happens on entry tick
+    if pnl >= _FAST_PROFIT and updates_since_entry <= _FAST_PROFIT_TICKS:
+        return f"Fast profit (+{round(pnl * 100)}¢)"
+
     return None
-
-
-def has_returner_pressure(match: MatchState, player: str) -> bool:
-    return _has_returner_pressure(match, player)
 
 
 def entry_state_label(match: MatchState) -> str:
