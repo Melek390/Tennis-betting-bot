@@ -18,6 +18,10 @@ class MarketCache:
         self._markets: list[KalshiMarket] = []
         self._prev_yes_ask: dict[str, float] = {}   # ticker → yes_ask from last refresh
 
+    @property
+    def market_count(self) -> int:
+        return len(self._markets)
+
     async def refresh(self) -> None:
         # Snapshot current prices before overwriting
         prev = {m.ticker: m.yes_ask for m in self._markets}

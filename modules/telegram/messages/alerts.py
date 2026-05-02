@@ -139,14 +139,19 @@ def log_text(player: str, match: str, log: dict) -> str:
     return "\n".join(lines)
 
 
-def heartbeat_text(match_count: int, enabled: bool) -> str:
+def heartbeat_text(match_count: int, kalshi_count: int, enabled: bool) -> str:
     matches_line = (
         f"{match_count} live match{'es' if match_count != 1 else ''}"
         if match_count else "No live matches"
     )
+    kalshi_line = (
+        f"{kalshi_count} market{'s' if kalshi_count != 1 else ''}"
+        if kalshi_count else "No markets"
+    )
     return (
         f"<b>Heartbeat</b>\n\n"
-        f"<b>Monitoring:</b> {matches_line}\n"
+        f"<b>Tennis API:</b> {matches_line}\n"
+        f"<b>Kalshi:</b> {kalshi_line}\n"
         f"<b>Rule 5:</b> {'ON' if enabled else 'OFF'}\n"
         f"<i>{_now()}</i>"
     )

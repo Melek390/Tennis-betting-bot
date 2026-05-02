@@ -81,8 +81,8 @@ class TelegramBot:
     async def send_log(self, player: str, match: str, log_data: dict) -> None:
         await self._send(alerts.log_text(player, match, log_data))
 
-    async def send_heartbeat(self, match_count: int) -> None:
-        await self._send(alerts.heartbeat_text(match_count, self._state.enabled))
+    async def send_heartbeat(self, match_count: int, kalshi_count: int = 0) -> None:
+        await self._send(alerts.heartbeat_text(match_count, kalshi_count, self._state.enabled))
 
     async def send_error(self, message: str) -> None:
         await self._send(alerts.error_text(message))
