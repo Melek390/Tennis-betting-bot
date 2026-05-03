@@ -33,7 +33,7 @@ class MarketCache:
                     params={
                         "series_ticker": series,
                         "limit": 1000,
-                        "status": "open",
+                        "status": "active",
                     },
                 )
                 for m in data.get("markets", []):
@@ -100,6 +100,9 @@ class MarketCache:
 
 def _parse_market(raw: dict) -> KalshiMarket | None:
     try:
+        # Skip resolved markets — result is set once a winner is declared
+        if raw.get("result"):
+            return None
         yes_ask = float(raw["yes_ask_dollars"])
         no_ask  = float(raw["no_ask_dollars"])
         # Skip near-settled markets — finished matches price out to 1-5¢ / 95-99¢
