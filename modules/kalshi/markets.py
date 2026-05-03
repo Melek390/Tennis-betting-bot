@@ -102,8 +102,9 @@ def _parse_market(raw: dict) -> KalshiMarket | None:
     try:
         yes_ask = float(raw["yes_ask_dollars"])
         no_ask  = float(raw["no_ask_dollars"])
-        # Skip settled markets (priced at exactly 1¢ or 100¢)
-        if yes_ask <= 0.01 or yes_ask >= 0.99:
+        # Skip near-settled markets — finished matches price out to 1-5¢ / 95-99¢
+        # and are never tradeable (entry floor is 10¢, cap is 60¢)
+        if yes_ask < 0.05 or yes_ask > 0.95:
             return None
         title = raw.get("yes_sub_title") or raw.get("title") or ""
         return KalshiMarket(
