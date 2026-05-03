@@ -1,6 +1,5 @@
 import logging
 import re
-import time
 
 from .client import KalshiClient
 from .models import KalshiMarket, PriceInfo
@@ -29,15 +28,12 @@ class MarketCache:
         markets: list[KalshiMarket] = []
         for series in _TENNIS_SERIES:
             try:
-                # Only fetch markets that close from the start of today onward,
-                # preventing stale unsettled markets from previous days clogging the cache.
-                today_start = int(time.time()) - (int(time.time()) % 86400)
                 data = await self._client.get(
                     "/markets",
                     params={
                         "series_ticker": series,
                         "limit": 1000,
-                        "min_close_ts": today_start,
+                        "status": "open",
                     },
                 )
                 for m in data.get("markets", []):
