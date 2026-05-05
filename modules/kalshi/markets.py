@@ -33,7 +33,6 @@ class MarketCache:
                     params={
                         "series_ticker": series,
                         "limit": 1000,
-                        "status": "active",
                     },
                 )
                 for m in data.get("markets", []):
