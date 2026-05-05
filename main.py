@@ -111,10 +111,11 @@ async def _heartbeat_loop(bot: TelegramBot, tennis: TennisAPIClient, kalshi: Mar
     await asyncio.sleep(15)
     while True:
         try:
-            match_count = len(tennis.live_matches)
-            kalshi_count = kalshi.market_count if kalshi else 0
+            live = tennis.live_matches
+            match_count = len(live)
+            kalshi_count = kalshi.live_market_count(live) if kalshi else 0
             await bot.send_heartbeat(match_count, kalshi_count)
-            logger.info("Heartbeat sent — %d live matches, %d kalshi markets", match_count, kalshi_count)
+            logger.info("Heartbeat sent — %d live matches, %d tradeable kalshi markets", match_count, kalshi_count)
         except Exception as e:
             logger.error("Heartbeat error: %s", e)
         await asyncio.sleep(3600)

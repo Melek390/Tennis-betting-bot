@@ -145,8 +145,8 @@ def heartbeat_text(match_count: int, kalshi_count: int, enabled: bool) -> str:
         if match_count else "No live matches"
     )
     kalshi_line = (
-        f"{kalshi_count} market{'s' if kalshi_count != 1 else ''}"
-        if kalshi_count else "No markets"
+        f"{kalshi_count} tradeable market{'s' if kalshi_count != 1 else ''}"
+        if kalshi_count else "No tradeable markets"
     )
     return (
         f"<b>Heartbeat</b>\n\n"

@@ -17,9 +17,13 @@ class MarketCache:
         self._markets: list[KalshiMarket] = []
         self._prev_yes_ask: dict[str, float] = {}   # ticker → yes_ask from last refresh
 
-    @property
-    def market_count(self) -> int:
-        return len(self._markets)
+    def live_market_count(self, live_matches: dict) -> int:
+        """Count Kalshi markets that have a corresponding live match right now."""
+        count = 0
+        for match in live_matches.values():
+            i1, i2 = self.get_prices(match.first_player, match.second_player)
+            count += (i1 is not None) + (i2 is not None)
+        return count
 
     async def refresh(self) -> None:
         # Snapshot current prices before overwriting
