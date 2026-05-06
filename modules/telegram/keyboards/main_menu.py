@@ -3,6 +3,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 def build() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Start Monitoring", callback_data="monitoring")],
-        [InlineKeyboardButton("Help", callback_data="help")],
+        [InlineKeyboardButton("⚙️  Set Rules",    callback_data="monitoring")],
+        [InlineKeyboardButton("📊  Bets History", callback_data="bets_history")],
+        [InlineKeyboardButton("❓  Help",         callback_data="help")],
     ])

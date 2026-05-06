@@ -33,6 +33,13 @@ class MarketCache:
                 market_count += n
         return names, market_count
 
+    @property
+    def markets(self) -> list[KalshiMarket]:
+        return list(self._markets)
+
+    def prev_yes_ask(self, ticker: str) -> float | None:
+        return self._prev_yes_ask.get(ticker)
+
     async def refresh(self) -> None:
         # Snapshot current prices before overwriting
         prev = {m.ticker: m.yes_ask for m in self._markets}

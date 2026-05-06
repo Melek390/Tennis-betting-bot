@@ -33,7 +33,7 @@ def entry_text(
         mid = price - spread / 2
         mid_line = f"  |  Mid: {_c(mid)}{_slip(spread)}"
     return (
-        f"<b>R5 ENTRY</b> — {match}\n"
+        f"<b>R1 ENTRY</b> — {match}\n"
         f"<i>{player} (returning)</i>\n"
         f"{detail}\n"
         f"Entry: {_c(price)}{mid_line}\n"
@@ -52,7 +52,7 @@ def exit_text(
     reason = exit_reason or "Condition no longer met"
 
     return (
-        f"<b>R5 EXIT</b> — {match}\n"
+        f"<b>R1 EXIT</b> — {match}\n"
         f"<i>{player} (returning)</i>\n"
         f"{score}\n"
         f"Reason: {reason}\n"
@@ -71,7 +71,7 @@ def reentry_text(
         mid = price - spread / 2
         mid_line = f"  |  Mid: {_c(mid)}{_slip(spread)}"
     return (
-        f"<b>R5 RE-ENTRY</b> — {match}\n"
+        f"<b>R1 RE-ENTRY</b> — {match}\n"
         f"<i>{player} (returning)</i>\n"
         f"{detail}\n"
         f"Entry: {_c(price)}{mid_line}\n"
@@ -99,7 +99,7 @@ def log_text(player: str, match: str, log: dict) -> str:
         return f"<code>{label:<4}</code> {_c(price)}{mid_str}{ps_str}{suffix}"
 
     lines = [
-        f"<b>R5 LOG</b> — {match}",
+        f"<b>R1 LOG</b> — {match}",
         f"<i>{player}</i>",
         "",
         "<b>Price path:</b>",
@@ -139,7 +139,73 @@ def log_text(player: str, match: str, log: dict) -> str:
     return "\n".join(lines)
 
 
-def heartbeat_text(match_count: int, kalshi_count: int, enabled: bool, tradeable_names: list[str] | None = None) -> str:
+# ------------------------------------------------------------------
+# Rule 2 — Kalshi Spike Fade alerts
+# ------------------------------------------------------------------
+
+def entry_r2_text(title: str, price: float, prev_price: float, reentry: bool = False) -> str:
+    tag  = "R2 RE-ENTRY" if reentry else "R2 ENTRY"
+    drop = round((prev_price - price) * 100)
+    return (
+        f"<b>{tag}</b> — Spike Fade\n"
+        f"<i>{title}</i>\n"
+        f"Price dropped {drop}¢ → buy YES at {_c(price)}\n"
+        f"<i>{_now()}</i>"
+    )
+
+
+def exit_r2_text(title: str, exit_price: float, entry_price: float | None, reason: str) -> str:
+    return (
+        f"<b>R2 EXIT</b> — Spike Fade\n"
+        f"<i>{title}</i>\n"
+        f"Reason: {reason}\n"
+        f"Entry: {_c(entry_price)}  →  Exit: {_c(exit_price)}\n"
+        f"P&L: <b>{_pnl(exit_price, entry_price)}</b>\n"
+        f"<i>{_now()}</i>"
+    )
+
+
+# ------------------------------------------------------------------
+# Rule 3 — Back Fav after Set Loss alerts
+# ------------------------------------------------------------------
+
+def entry_r3_text(
+    player: str, match: str, price: float, prev_price: float,
+    set1_score: str, reentry: bool = False,
+) -> str:
+    tag  = "R3 RE-ENTRY" if reentry else "R3 ENTRY"
+    drop = round((prev_price - price) * 100)
+    return (
+        f"<b>{tag}</b> — Back Fav after Set Loss\n"
+        f"<i>{player} — {match}</i>\n"
+        f"Set 1: {set1_score} · Price dropped {drop}¢\n"
+        f"Entry: {_c(price)}\n"
+        f"<i>{_now()}</i>"
+    )
+
+
+def exit_r3_text(
+    player: str, match: str, exit_price: float,
+    entry_price: float | None, reason: str,
+) -> str:
+    return (
+        f"<b>R3 EXIT</b> — Back Fav after Set Loss\n"
+        f"<i>{player} — {match}</i>\n"
+        f"Reason: {reason}\n"
+        f"Entry: {_c(entry_price)}  →  Exit: {_c(exit_price)}\n"
+        f"P&L: <b>{_pnl(exit_price, entry_price)}</b>\n"
+        f"<i>{_now()}</i>"
+    )
+
+
+def heartbeat_text(
+    match_count: int,
+    kalshi_count: int,
+    enabled: bool,
+    enabled_r2: bool = True,
+    enabled_r3: bool = True,
+    tradeable_names: list[str] | None = None,
+) -> str:
     matches_line = (
         f"{match_count} live match{'es' if match_count != 1 else ''}"
         if match_count else "No live matches"
@@ -163,7 +229,9 @@ def heartbeat_text(match_count: int, kalshi_count: int, enabled: bool, tradeable
         f"<b>Heartbeat</b>\n\n"
         f"<b>Tennis API:</b> {matches_line}\n"
         f"<b>Kalshi:</b> {kalshi_line}{tradeable_block}\n"
-        f"<b>Rule 5:</b> {'ON' if enabled else 'OFF'}\n"
+        f"<b>Rule 1:</b> {'ON' if enabled else 'OFF'}\n"
+        f"<b>Rule 2:</b> {'ON' if enabled_r2 else 'OFF'}\n"
+        f"<b>Rule 3:</b> {'ON' if enabled_r3 else 'OFF'}\n"
         f"<i>{_now()}</i>"
     )
 

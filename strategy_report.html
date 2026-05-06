@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automated Betting Strategy Report</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e2e8f0; line-height: 1.6; }
+
+  .header {
+    background: linear-gradient(135deg, #1a1f2e 0%, #16213e 100%);
+    border-bottom: 1px solid #2d3748;
+    padding: 40px;
+    text-align: center;
+  }
+  .header h1 { font-size: 2rem; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+  .header p { color: #718096; margin-top: 8px; font-size: 0.95rem; }
+  .badge { display: inline-block; background: #2d3748; border: 1px solid #4a5568; color: #a0aec0; font-size: 0.75rem; padding: 3px 10px; border-radius: 20px; margin-top: 12px; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+  /* Kalshi audit box */
+  .kalshi-audit {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 40px;
+  }
+  .kalshi-audit h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; color: #718096; margin-bottom: 16px; }
+  .markets-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .market-tile {
+    background: #0f1117;
+    border: 1px solid #2d3748;
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .market-tile.active { border-color: #38a169; }
+  .market-tile.inactive { opacity: 0.45; }
+  .market-tile .count { font-size: 1.8rem; font-weight: 700; color: #38a169; }
+  .market-tile.inactive .count { color: #718096; }
+  .market-tile .label { font-size: 0.8rem; color: #a0aec0; margin-top: 2px; }
+  .market-tile .ticker { font-size: 0.7rem; color: #4a5568; font-family: monospace; margin-top: 4px; }
+
+  /* Sport sections */
+  .sport-section { margin-bottom: 48px; }
+  .sport-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #2d3748;
+  }
+  .sport-icon { font-size: 1.5rem; }
+  .sport-title { font-size: 1.35rem; font-weight: 700; color: #fff; }
+  .sport-subtitle { font-size: 0.85rem; color: #718096; margin-top: 2px; }
+  .platform-tag {
+    margin-left: auto;
+    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .tag-kalshi { background: #1a365d; border: 1px solid #2b6cb0; color: #90cdf4; }
+  .tag-betfair { background: #1c3031; border: 1px solid #2c7a7b; color: #81e6d9; }
+  .tag-both { background: #2d2522; border: 1px solid #c05621; color: #fbd38d; }
+
+  /* Strategy card */
+  .strategy-card {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 18px 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .card-number {
+    background: #2d3748;
+    color: #a0aec0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .card-title-block { flex: 1; }
+  .card-title { font-size: 1.05rem; font-weight: 700; color: #fff; }
+  .card-tagline { font-size: 0.82rem; color: #718096; margin-top: 3px; }
+  .card-pills { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .pill {
+    font-size: 0.72rem;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .pill-green { background: #1c4532; color: #68d391; border: 1px solid #276749; }
+  .pill-blue  { background: #1a365d; color: #90cdf4; border: 1px solid #2b6cb0; }
+  .pill-orange{ background: #2d2522; color: #f6ad55; border: 1px solid #c05621; }
+  .pill-red   { background: #2d1515; color: #fc8181; border: 1px solid #c53030; }
+
+  .card-body { padding: 0 24px 20px 24px; }
+  .divider { height: 1px; background: #2d3748; margin: 0 -24px 18px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media(max-width:640px) { .two-col { grid-template-columns: 1fr; } }
+
+  .info-block { background: #0f1117; border: 1px solid #2d3748; border-radius: 8px; padding: 14px 16px; }
+  .info-block h4 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.8px; color: #718096; margin-bottom: 8px; }
+  .info-block p, .info-block li { font-size: 0.87rem; color: #cbd5e0; line-height: 1.55; }
+  .info-block ul { padding-left: 16px; }
+  .info-block li { margin-bottom: 4px; }
+
+  .entry-block { border-left: 3px solid #38a169; }
+  .exit-block  { border-left: 3px solid #fc8181; }
+  .edge-block  { border-left: 3px solid #90cdf4; }
+  .result-block{ border-left: 3px solid #f6ad55; }
+
+  .full-col { grid-column: 1 / -1; }
+
+  .roi-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #1c4532;
+    border: 1px solid #276749;
+    color: #68d391;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-top: 4px;
+  }
+
+  /* Kalshi compatibility banner */
+  .compat-banner {
+    background: #0f1117;
+    border: 1px solid #2d3748;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 8px;
+    font-size: 0.83rem;
+    color: #a0aec0;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .compat-banner.yes { border-color: #276749; background: #0d1f14; }
+  .compat-banner.partial { border-color: #c05621; background: #1c1507; }
+  .compat-banner.no { border-color: #c53030; background: #1c0a0a; }
+  .compat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .dot-yes { background: #38a169; }
+  .dot-partial { background: #f6ad55; }
+  .dot-no { background: #fc8181; }
+
+  /* footer */
+  .footer { text-align: center; padding: 32px; color: #4a5568; font-size: 0.8rem; border-top: 1px solid #2d3748; margin-top: 40px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Automated Betting Strategy Report</h1>
+  <p>Research-backed strategies for tennis and football — with live Kalshi market availability</p>
+  <span class="badge">Generated May 2026 · Sources: Betfair, Caan Berry, Sports Trading Life, netprofit.tennis, Smarkets</span>
+</div>
+
+<div class="container">
+
+  <!-- Kalshi Audit -->
+  <div class="kalshi-audit">
+    <h2>Kalshi Live Market Availability (Audited Now)</h2>
+    <div class="markets-grid">
+      <div class="market-tile active">
+        <div class="count">64</div>
+        <div class="label">ATP Singles</div>
+        <div class="ticker">KXATPMATCH</div>
+      </div>
+      <div class="market-tile active">
+        <div class="count">30</div>
+        <div class="label">WTA Singles</div>
+        <div class="ticker">KXWTAMATCH</div>
+      </div>
+      <div class="market-tile active">
+        <div class="count">78</div>
+        <div class="label">MLB Baseball</div>
+        <div class="ticker">KXMLBGAME</div>
+      </div>
+      <div class="market-tile active">
+        <div class="count">28</div>
+        <div class="label">NBA Basketball</div>
+        <div class="ticker">KXNBAGAME</div>
+      </div>
+      <div class="market-tile active">
+        <div class="count">4</div>
+        <div class="label">Champions League</div>
+        <div class="ticker">KXUCL</div>
+      </div>
+      <div class="market-tile active">
+        <div class="count">30</div>
+        <div class="label">J-League Football</div>
+        <div class="ticker">KXJLEAGUEGAME</div>
+      </div>
+      <div class="market-tile inactive">
+        <div class="count">0</div>
+        <div class="label">EPL / La Liga</div>
+        <div class="ticker">Season ended</div>
+      </div>
+      <div class="market-tile inactive">
+        <div class="count">0</div>
+        <div class="label">Serie A / Bundesliga</div>
+        <div class="ticker">Season ended</div>
+      </div>
+    </div>
+    <p style="font-size:0.8rem;color:#4a5568;margin-top:14px;">&#9432; European football seasons have ended — EPL, La Liga, Serie A, Bundesliga all show 0 open markets. Football strategies require Betfair Exchange until August 2026.</p>
+  </div>
+
+  <!-- TENNIS -->
+  <div class="sport-section">
+    <div class="sport-header">
+      <span class="sport-icon">🎾</span>
+      <div>
+        <div class="sport-title">Tennis Strategies</div>
+        <div class="sport-subtitle">Works directly on Kalshi ATP + WTA markets (94 open markets right now)</div>
+      </div>
+      <span class="platform-tag tag-kalshi">KALSHI ✓</span>
+    </div>
+
+    <!-- Tennis Strategy 1 -->
+    <div class="strategy-card">
+      <div class="card-header">
+        <div class="card-number">1</div>
+        <div class="card-title-block">
+          <div class="card-title">Back the Favourite After Losing Set 1</div>
+          <div class="card-tagline">Markets over-correct when the favourite drops the opening set — buy them at a discount</div>
+          <div class="card-pills">
+            <span class="pill pill-green">+6–8% ROI documented</span>
+            <span class="pill pill-blue">Match Winner market</span>
+            <span class="pill pill-orange">Automatable</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="divider"></div>
+        <div class="two-col">
+          <div class="info-block entry-block">
+            <h4>Entry Conditions</h4>
+            <ul>
+              <li>Pre-match favourite (price 1.25–1.60 on Betfair / 40–80¢ on Kalshi)</li>
+              <li>Loses the first set</li>
+              <li>Kalshi price has drifted ≥25% above pre-match price</li>
+              <li>First set was competitive (6-4, 7-5, 7-6 — not 6-0/6-1)</li>
+              <li>Wait: favourite holds first service game of set 2 cleanly before entering</li>
+            </ul>
+          </div>
+          <div class="info-block exit-block">
+            <h4>Exit Conditions</h4>
+            <ul>
+              <li><strong>Profit:</strong> Favourite wins set 2 → price snaps back toward pre-match level</li>
+              <li><strong>Stop loss:</strong> Favourite goes 0–3 down in set 2 → exit immediately</li>
+              <li><strong>Partial exit:</strong> If sets go to 1-1, take 50% profit and hold remainder</li>
+            </ul>
+          </div>
+          <div class="info-block edge-block">
+            <h4>Why It Works</h4>
+            <p>Strong favourites win from a set down ~45–55% of the time in best-of-three. Markets systematically overshoot the correction after set 1 because casual bettors abandon the favourite. You're buying a real 45% probability at a 35% market price.</p>
+          </div>
+          <div class="info-block result-block">
+            <h4>Documented Results</h4>
+            <p>MarketFeeder Pro tested variant: <span class="roi-badge">+6.72% ROI (12W/2L)</span> and <span class="roi-badge">+8.05% ROI (14W/1L)</span>. Confirmed directionally positive across multiple test windows by Betfair Trading Community.</p>
+          </div>
+        </div>
+        <div class="compat-banner yes">
+          <div class="compat-dot dot-yes"></div>
+          <div><strong style="color:#68d391">Kalshi: Full compatibility.</strong> Set scores are detected via existing tennis WebSocket. Kalshi ATP/WTA match winner markets are already integrated. This slots directly into <code>rules.py</code> — roughly 30 lines of new code.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tennis Strategy 2 -->
+    <div class="strategy-card">
+      <div class="card-header">
+        <div class="card-number">2</div>
+        <div class="card-title-block">
+          <div class="card-title">Fade the Service Break (Back the Broken Server)</div>
+          <div class="card-tagline">Markets overreact to breaks — elite servers recover ~50% of the time from 0–40</div>
+          <div class="card-pills">
+            <span class="pill pill-green">Positive EV on filtered matches</span>
+            <span class="pill pill-blue">Match Winner market</span>
+            <span class="pill pill-orange">Very automatable</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="divider"></div>
+        <div class="two-col">
+          <div class="info-block entry-block">
+            <h4>Entry Conditions</h4>
+            <ul>
+              <li>Service break occurs (opponent wins the service game)</li>
+              <li>Broken player is the pre-match favourite OR strong server on fast surface</li>
+              <li>Break was "soft" (unforced errors, not aggressive opponent winners)</li>
+              <li>Broken player's price increased ≥20% from pre-break price</li>
+              <li>Do NOT enter on a break in the final game of a set</li>
+            </ul>
+          </div>
+          <div class="info-block exit-block">
+            <h4>Exit Conditions</h4>
+            <ul>
+              <li><strong>Profit:</strong> Broken player immediately re-breaks → price snaps back</li>
+              <li><strong>Profit:</strong> Broken player holds serve twice → market calms, smaller profit</li>
+              <li><strong>Stop loss:</strong> Broken player loses next service game (double break) → exit at 40–50% of stake</li>
+            </ul>
+          </div>
+          <div class="info-block edge-block">
+            <h4>Why It Works</h4>
+            <p>Betfair's own research: top ATP servers recover from 0–40 approximately 50% of the time. The market prices a break as near-permanent when statistically it's a coin flip on fast surfaces. Grass/hard court servers are especially undervalued post-break.</p>
+          </div>
+          <div class="info-block result-block">
+            <h4>Documented Results</h4>
+            <p>Betfair official blog published this as a documented strategy. Unfiltered bot: −1.48% ROI. With server quality + surface filter applied: positive ROI documented by Caan Berry and MarketFeeder Pro independently.</p>
+          </div>
+        </div>
+        <div class="compat-banner yes">
+          <div class="compat-dot dot-yes"></div>
+          <div><strong style="color:#68d391">Kalshi: Full compatibility.</strong> Break detection = game score drops when server changes → already trackable via WebSocket. Most similar to current Rule 5 architecture — entry on break event, exit on re-break or double-break.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tennis Strategy 3 -->
+    <div class="strategy-card">
+      <div class="card-header">
+        <div class="card-number">3</div>
+        <div class="card-title-block">
+          <div class="card-title">Lay the First Set Winner (Second-Set Slump)</div>
+          <div class="card-tagline">Winning the first set triggers complacency — bet against the first-set winner in set 2</div>
+          <div class="card-pills">
+            <span class="pill pill-green">83% win rate in halftime LTD variant</span>
+            <span class="pill pill-blue">Match Winner market</span>
+            <span class="pill pill-orange">Automatable</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="divider"></div>
+        <div class="two-col">
+          <div class="info-block entry-block">
+            <h4>Entry Conditions</h4>
+            <ul>
+              <li>First set ends — either player wins it</li>
+              <li>First-set winner's match price is ≤1.56 on Betfair (≤60¢ Kalshi)</li>
+              <li>Best: underdog wins set 1 (larger price overreaction)</li>
+              <li>Preferred surface: clay or WTA (more physical, more second-set slumps)</li>
+              <li>Avoid: 6-0 or 6-1 dominance (no psychological let-down)</li>
+            </ul>
+          </div>
+          <div class="info-block exit-block">
+            <h4>Exit Conditions</h4>
+            <ul>
+              <li><strong>Profit:</strong> Other player wins set 2 → price drifts significantly</li>
+              <li><strong>Stop loss:</strong> First-set winner goes 4-1 up in set 2 → cut the trade early</li>
+              <li><strong>Target exit:</strong> End of set 2 regardless — don't carry into set 3</li>
+            </ul>
+          </div>
+          <div class="info-block edge-block">
+            <h4>Why It Works</h4>
+            <p>Ryan Carruthers (professional Betfair tennis trader) built a career around this. Post-set-win complacency is real and documented. The market over-shortens the set winner's price for set 2, creating consistent value on the opponent at 1-0 in sets.</p>
+          </div>
+          <div class="info-block result-block">
+            <h4>Documented Results</h4>
+            <p>netprofit.tennis ATP data (2016-2019, 8,408 matches): 36% of all ATP matches qualify. Positive EV documented. Betfair Trading Community flagged second-set slump as "one of the most consistent recurring patterns in WTA." Ryan Carruthers trades this full-time.</p>
+          </div>
+        </div>
+        <div class="compat-banner yes">
+          <div class="compat-dot dot-yes"></div>
+          <div><strong style="color:#68d391">Kalshi: Full compatibility.</strong> Set score data already in <code>MatchState</code>. Kalshi ATP/WTA market is the match winner market — you're buying the trailing player's Yes contract at a discount when they're 0-1 in sets.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tennis Strategy 4 -->
+    <div class="strategy-card">
+      <div class="card-header">
+        <div class="card-number">4</div>
+        <div class="card-title-block">
+          <div class="card-title">Opening Set Price Compression Lay</div>
+          <div class="card-tagline">Lay the set leader at 4-1 or 5-1 risking 3 ticks to gain 50+ ticks on a break back</div>
+          <div class="card-pills">
+            <span class="pill pill-orange">Asymmetric risk:reward</span>
+            <span class="pill pill-blue">Set Winner or Match Winner</span>
+            <span class="pill pill-red">Betfair preferred</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="divider"></div>
+        <div class="two-col">
+          <div class="info-block entry-block">
+            <h4>Entry Conditions</h4>
+            <ul>
+              <li>Score in any set reaches 4-1, 5-1, 5-2, or 4-2</li>
+              <li>Leading player's match price is within 3-4 ticks of their "set winner" theoretical price (typically 1.12–1.20 Betfair / 83–88¢ Kalshi)</li>
+              <li>Trailing player had at least one break point opportunity recently</li>
+              <li>WTA or ATP clay preferred (more break opportunities)</li>
+            </ul>
+          </div>
+          <div class="info-block exit-block">
+            <h4>Exit Conditions</h4>
+            <ul>
+              <li><strong>Profit:</strong> Trailing player breaks back (4-3 or 5-3) → price drifts 50+ ticks</li>
+              <li><strong>Stop loss:</strong> Set closes out → accept 2-4 tick loss and move on</li>
+              <li>Caan Berry: "You're risking 3 ticks to make 50+ ticks — reward:risk IS the edge"</li>
+            </ul>
+          </div>
+          <div class="info-block edge-block">
+            <h4>Why It Works</h4>
+            <p>The market over-compresses at 4-1/5-1 treating the set as near-certain. Statistically, a break back is still 30-40% likely at this score. The asymmetry (3 ticks risk vs 50+ ticks reward) means you only need a 6-10% win rate to break even — but actual win rate is 25-35%.</p>
+          </div>
+          <div class="info-block result-block">
+            <h4>Documented Results</h4>
+            <p>Caan Berry's primary recommended strategy for tennis beginners — documented in his Tennis Traders Guide. Daniel Temple's case study on Medium shows a specific 4-1 example: 3-tick risk → 53-tick gain on break back. Win rate lower than 50% but highly profitable long-term due to reward ratio.</p>
+          </div>
+        </div>
+        <div class="compat-banner partial">
+          <div class="compat-dot dot-partial"></div>
+          <div><strong style="color:#f6ad55">Kalshi: Partial compatibility.</strong> Kalshi only offers match winner markets (not set winner). At 4-1/5-1 the match price is already at 85-90¢ which is near the ≤60¢ entry cap. Works better on Betfair where you can trade tick-by-tick. For Kalshi, adjust entry cap to 88¢ for this strategy specifically.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FOOTBALL -->
+  <div class="sport-section">
+    <div class="sport-header">
+      <span class="sport-icon">⚽</span>
+      <div>
+        <div class="sport-title">Football Strategies</div>
+        <div class="sport-subtitle">European leagues finished — requires Betfair Exchange until August 2026 (or J-League on Kalshi now)</div>
+      </div>
+      <span class="platform-tag tag-betfair">BETFAIR EXCHANGE</span>
+    </div>
+
+    <!-- Football Strategy 1 -->
+    <div class="strategy-card">
+      <div class="card-header">
+        <div class="card-number">1</div>
+        <div class="card-title-block">
+          <div class="card-title">Lay the Draw (LTD)</div>
+          <div class="card-tagline">The most documented automated exchange strategy — a goal spikes the draw price, lock profit and exit</div>
+          <div class="card-pills">
+            <span class="pill pill-green">70–83% win rate documented</span>
+            <span class="pill pill-blue">Draw market</span>
+            <span class="pill pill-orange">Most popular automated strategy</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="divider"></div>
+        <div class="two-col">
+          <div class="info-block entry-block">
+            <h4>Entry Conditions</h4>
+            <ul>
+              <li>Score is 0-0, within first 5-10 minutes</li>
+              <li>Pre-match draw odds between 3.2 and 5.0</li>
+              <li>Home team is pre-match favourite (home win odds 1.7–2.3)</li>
+              <li>Both teams have &lt;10% full-time 0-0 rate in last 8 games</li>
+              <li>Home team scores in 1st half in &gt;50% of matches</li>
+              <li>Away team not set up purely to defend</li>
+            </ul>
+          </div>
+          <div class="info-block exit-block">
+            <h4>Exit Conditions</h4>
+            <ul>
+              <li><strong>Profit:</strong> First goal scored → immediately BACK the draw (price spikes 40–80%)</li>
+              <li><strong>Stop loss:</strong> 0-0 at 70-72 minutes → close for ~85% of stake loss</li>
+              <li><strong>Alternative:</strong> If underdog scores first, lay the underdog — if favourite equalises, exit profitably</li>
+            </ul>
+          </div>
+          <div class="info-block edge-block">
+            <h4>Why It Works</h4>
+            <p>Post-goal, casual bettors flood the draw market causing a systematic overreaction in draw price. A goal moves draw odds from ~3.5 to 8-15+ (small lead) or 20-30+ (two-goal lead). The market's overreaction to goals is the documented structural edge.</p>
+          </div>
+          <div class="info-block result-block">
+            <h4>Documented Results</h4>
+            <p>Betfair Trading Community tested "LTD at halftime" variant: <span class="roi-badge">83% win rate</span>. Sports Trading Life documents a full-time professional trader (David G) who does this exclusively. Win rate 70-80% with proper match selection.</p>
+          </div>
+        </div>
+        <div class="compat-banner no">
+          <div class="compat-dot dot-no"></div>
+          <div><strong style="color:#fc8181">Kalshi: Not available.</strong> Kalshi has no active European league draw markets (EPL/La Liga/Serie A season ended). Requires Betfair Exchange. Infrastructure needed: live football score API (API-Football or SportMonks) + Betfair API client. Buildable in ~2-3 weeks.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Football Strategy 2 -->
+    <div class="strategy-card">
+      <div class="card-header">
+        <div class="card-number">2</div>
+        <div class="card-title-block">
+          <div class="card-title">Back Over 1.5 Goals — Drip Feed System</div>
+          <div class="card-tagline">Enter in stages at 20, 27 and 35 minutes while goalless — a goal locks profit at any point</div>
+          <div class="card-pills">
+            <span class="pill pill-green">74% of qualifying matches produce a goal</span>
+            <span class="pill pill-blue">Goals market</span>
+            <span class="pill pill-orange">Very automatable</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="divider"></div>
+        <div class="two-col">
+          <div class="info-block entry-block">
+            <h4>Entry Conditions (3-drip system)</h4>
+            <ul>
+              <li>Both teams avg &gt;2.5 goals/game, &lt;10% 0-0 rate</li>
+              <li><strong>Drip 1:</strong> Still 0-0 at 20 min → back Over 1.5 Goals (0.35% bankroll)</li>
+              <li><strong>Drip 2:</strong> Still 0-0 at 27 min → back Over 1.5 Goals (0.35% bankroll)</li>
+              <li><strong>Drip 3:</strong> Still 0-0 at 35 min → back Over 1.5 Goals (0.35% bankroll)</li>
+            </ul>
+          </div>
+          <div class="info-block exit-block">
+            <h4>Exit Conditions</h4>
+            <ul>
+              <li><strong>Profit:</strong> Any goal scored → immediately LAY Over 1.5 for entire matched stake → locked green</li>
+              <li><strong>Half-time review:</strong> If still 0-0, evaluate based on match stats before deciding to hold or exit at ~25% loss</li>
+              <li><strong>Stop:</strong> If 0-0 at 75 min → close position</li>
+            </ul>
+          </div>
+          <div class="info-block edge-block">
+            <h4>Why It Works</h4>
+            <p>Markets mechanically inflate the no-goal probability while ignoring that teams are still pushing in high-scoring matches. You drip in at progressively better prices as time passes goalless, improving average entry. One goal anywhere in the remaining 55+ minutes locks profit on all positions.</p>
+          </div>
+          <div class="info-block result-block">
+            <h4>Documented Results</h4>
+            <p>Betfair Trading Community backtested second-half variant (back at 60 min if 0-0): <span class="roi-badge">74.3% qualifying matches produce a goal</span> at odds typically 1.40–1.50 against a 1.35 break-even. Profitable at scale with proper match selection.</p>
+          </div>
+        </div>
+        <div class="compat-banner no">
+          <div class="compat-dot dot-no"></div>
+          <div><strong style="color:#fc8181">Kalshi: Not available.</strong> Kalshi has no Over/Under goals markets. Requires Betfair Exchange. Same infrastructure requirement as Strategy 1 — once Betfair client is built, adding this strategy is a small increment.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Football Strategy 3 -->
+    <div class="strategy-card">
+      <div class="card-header">
+        <div class="card-number">3</div>
+        <div class="card-title-block">
+          <div class="card-title">Over 0.5 Goals (Second Half) — 60-Minute Entry</div>
+          <div class="card-tagline">Simplest football strategy — back a goal in the second half when 0-0 at the 60th minute</div>
+          <div class="card-pills">
+            <span class="pill pill-green">74.3% documented win rate</span>
+            <span class="pill pill-blue">Goals market</span>
+            <span class="pill pill-orange">Simplest to automate</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="divider"></div>
+        <div class="two-col">
+          <div class="info-block entry-block">
+            <h4>Entry Conditions</h4>
+            <ul>
+              <li>Score 0-0 (or 1-1) at exactly the 60th minute</li>
+              <li>Both teams have &lt;10% 0-0 rate in last 8 games</li>
+              <li>Both teams score in &gt;50% of second halves</li>
+              <li>4-5+ shots on target between 45-60 min (match is still open)</li>
+              <li>Back Over 0.5 Goals Second Half at current in-play price</li>
+            </ul>
+          </div>
+          <div class="info-block exit-block">
+            <h4>Exit Conditions</h4>
+            <ul>
+              <li><strong>Profit:</strong> Any goal scored → LAY immediately, price drops to 1.01-1.03</li>
+              <li><strong>Stop loss:</strong> If 0-0 at 75 min → exit (~30-40% stake loss)</li>
+              <li><strong>Discipline:</strong> At 85+ min if no goal, loss is near-total — must cut</li>
+            </ul>
+          </div>
+          <div class="info-block edge-block">
+            <h4>Why It Works</h4>
+            <p>Teams that are 0-0 at 60 minutes get increasingly aggressive for the remaining 30 minutes. The market hasn't fully adjusted to the concentrated remaining-time probability. In filtered matches, 74.3% produce a second-half goal — the market often prices this at 1.40-1.70, well above the 1.35 break-even.</p>
+          </div>
+          <div class="info-block result-block">
+            <h4>Documented Results</h4>
+            <p>Betfair Trading Community formal analysis of "Gary's Second Half Goals" strategy: <span class="roi-badge">74.3% qualifying games had a 2nd-half goal</span>. Consistent monthly profit documented over multiple seasons with the stated match filters applied.</p>
+          </div>
+        </div>
+        <div class="compat-banner no">
+          <div class="compat-dot dot-no"></div>
+          <div><strong style="color:#fc8181">Kalshi: Not available.</strong> No Over/Under goals markets on Kalshi. Requires Betfair. Match-minute data requires a live football API with minute-by-minute timestamps.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Football Strategy 4 -->
+    <div class="strategy-card">
+      <div class="card-header">
+        <div class="card-number">4</div>
+        <div class="card-title-block">
+          <div class="card-title">Back the First Goalscorer's Team</div>
+          <div class="card-tagline">Back the team that scores first — win probability jumps +25% on average, markets lag 60-90 seconds</div>
+          <div class="card-pills">
+            <span class="pill pill-green">80%+ win rate after away team scores first</span>
+            <span class="pill pill-blue">Match Winner market</span>
+            <span class="pill pill-orange">Automatable with goal feed</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="divider"></div>
+        <div class="two-col">
+          <div class="info-block entry-block">
+            <h4>Entry Conditions</h4>
+            <ul>
+              <li>First goal scored between minutes 15 and 75</li>
+              <li>Enter within 90 seconds of goal notification</li>
+              <li><strong>Best case:</strong> Away team scores first (larger odds drift = more opportunity)</li>
+              <li>Avoid: goals in first 15 min (odds haven't fully moved yet) or after 75 min (too little time)</li>
+              <li>Back the scoring team's match winner market at in-play price</li>
+            </ul>
+          </div>
+          <div class="info-block exit-block">
+            <h4>Exit Conditions</h4>
+            <ul>
+              <li><strong>Profit:</strong> Second goal by the same team → lock and exit immediately</li>
+              <li><strong>Stop:</strong> Equaliser scored → exit with pre-agreed loss budget (~40-60% of stake)</li>
+              <li><strong>Hold:</strong> If leads 1-0 into 80+ minutes, hold to settlement for maximum profit</li>
+            </ul>
+          </div>
+          <div class="info-block edge-block">
+            <h4>Why It Works</h4>
+            <p>Smarkets published data: scoring the first goal increases win probability by +25 percentage points on average. Markets take 60-90 seconds to fully re-price after a goal. Entering in this window captures the lag. Away teams have the most pronounced effect since their pre-match underdog odds create the largest absolute move.</p>
+          </div>
+          <div class="info-block result-block">
+            <h4>Documented Results</h4>
+            <p>Smarkets published: home team scores first → wins <span class="roi-badge">83.3%</span>. Away team scores first → wins <span class="roi-badge">~80%</span>. First goal in mins 1-15: scoring team wins 64%. First goal in mins 76-90: scoring team wins 87.5%. Smarkets flagged away-first-goal as "very profitable" in their official strategy guide.</p>
+          </div>
+        </div>
+        <div class="compat-banner partial">
+          <div class="compat-dot dot-partial"></div>
+          <div><strong style="color:#f6ad55">Kalshi: Partial.</strong> Kalshi's J-League (30 markets, KXJLEAGUEGAME) has match winner markets that could work for this strategy right now. European leagues need Betfair. J-League is lower liquidity but a viable test bed before European seasons restart in August.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary table -->
+  <div class="kalshi-audit" style="margin-top:0">
+    <h2>Strategy Summary & Priority</h2>
+    <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:0.85rem">
+      <thead>
+        <tr style="border-bottom:1px solid #2d3748;color:#718096;text-align:left">
+          <th style="padding:8px 12px">#</th>
+          <th style="padding:8px 12px">Strategy</th>
+          <th style="padding:8px 12px">Sport</th>
+          <th style="padding:8px 12px">Kalshi Now</th>
+          <th style="padding:8px 12px">Code effort</th>
+          <th style="padding:8px 12px">Edge strength</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #1a1f2e">
+          <td style="padding:8px 12px;color:#a0aec0">T1</td>
+          <td style="padding:8px 12px;color:#fff">Back Favourite after Set 1 Loss</td>
+          <td style="padding:8px 12px;color:#a0aec0">Tennis</td>
+          <td style="padding:8px 12px"><span style="color:#68d391">✓ Yes</span></td>
+          <td style="padding:8px 12px;color:#a0aec0">~30 lines</td>
+          <td style="padding:8px 12px"><span style="color:#68d391">★★★★☆</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid #1a1f2e">
+          <td style="padding:8px 12px;color:#a0aec0">T2</td>
+          <td style="padding:8px 12px;color:#fff">Fade the Service Break</td>
+          <td style="padding:8px 12px;color:#a0aec0">Tennis</td>
+          <td style="padding:8px 12px"><span style="color:#68d391">✓ Yes</span></td>
+          <td style="padding:8px 12px;color:#a0aec0">~20 lines</td>
+          <td style="padding:8px 12px"><span style="color:#68d391">★★★★☆</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid #1a1f2e">
+          <td style="padding:8px 12px;color:#a0aec0">T3</td>
+          <td style="padding:8px 12px;color:#fff">Lay the First Set Winner</td>
+          <td style="padding:8px 12px;color:#a0aec0">Tennis</td>
+          <td style="padding:8px 12px"><span style="color:#68d391">✓ Yes</span></td>
+          <td style="padding:8px 12px;color:#a0aec0">~25 lines</td>
+          <td style="padding:8px 12px"><span style="color:#68d391">★★★★☆</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid #1a1f2e">
+          <td style="padding:8px 12px;color:#a0aec0">T4</td>
+          <td style="padding:8px 12px;color:#fff">Opening Set Price Compression Lay</td>
+          <td style="padding:8px 12px;color:#a0aec0">Tennis</td>
+          <td style="padding:8px 12px"><span style="color:#f6ad55">~ Partial</span></td>
+          <td style="padding:8px 12px;color:#a0aec0">~20 lines</td>
+          <td style="padding:8px 12px"><span style="color:#f6ad55">★★★☆☆</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid #1a1f2e">
+          <td style="padding:8px 12px;color:#a0aec0">F1</td>
+          <td style="padding:8px 12px;color:#fff">Lay the Draw</td>
+          <td style="padding:8px 12px;color:#a0aec0">Football</td>
+          <td style="padding:8px 12px"><span style="color:#fc8181">✗ Betfair only</span></td>
+          <td style="padding:8px 12px;color:#a0aec0">~2-3 weeks</td>
+          <td style="padding:8px 12px"><span style="color:#68d391">★★★★★</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid #1a1f2e">
+          <td style="padding:8px 12px;color:#a0aec0">F2</td>
+          <td style="padding:8px 12px;color:#fff">Over 1.5 Goals Drip Feed</td>
+          <td style="padding:8px 12px;color:#a0aec0">Football</td>
+          <td style="padding:8px 12px"><span style="color:#fc8181">✗ Betfair only</span></td>
+          <td style="padding:8px 12px;color:#a0aec0">~2-3 weeks</td>
+          <td style="padding:8px 12px"><span style="color:#68d391">★★★★☆</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid #1a1f2e">
+          <td style="padding:8px 12px;color:#a0aec0">F3</td>
+          <td style="padding:8px 12px;color:#fff">Over 0.5 Goals Second Half</td>
+          <td style="padding:8px 12px;color:#a0aec0">Football</td>
+          <td style="padding:8px 12px"><span style="color:#fc8181">✗ Betfair only</span></td>
+          <td style="padding:8px 12px;color:#a0aec0">~1 week add-on</td>
+          <td style="padding:8px 12px"><span style="color:#68d391">★★★★☆</span></td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px;color:#a0aec0">F4</td>
+          <td style="padding:8px 12px;color:#fff">Back the First Goalscorer's Team</td>
+          <td style="padding:8px 12px;color:#a0aec0">Football</td>
+          <td style="padding:8px 12px"><span style="color:#f6ad55">~ J-League only</span></td>
+          <td style="padding:8px 12px;color:#a0aec0">~1 week add-on</td>
+          <td style="padding:8px 12px"><span style="color:#68d391">★★★★★</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<div class="footer">
+  Sources: Betfair Trading Community · Caan Berry · Sports Trading Life · netprofit.tennis · Smarkets Official Blog · MarketFeeder Pro · Medium / Daniel Temple<br>
+  Kalshi market audit performed live — May 2026
+</div>
+
+</body>
+</html>

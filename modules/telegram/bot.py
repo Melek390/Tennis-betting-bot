@@ -23,6 +23,14 @@ class TelegramBot:
     def enabled(self) -> bool:
         return self._state.enabled
 
+    @property
+    def enabled_r2(self) -> bool:
+        return self._state.enabled_r2
+
+    @property
+    def enabled_r3(self) -> bool:
+        return self._state.enabled_r3
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -53,7 +61,7 @@ class TelegramBot:
                 logger.error("Telegram send failed for %s: %s", chat_id, e)
 
     # ------------------------------------------------------------------
-    # Alert senders
+    # Rule 1 alert senders
     # ------------------------------------------------------------------
 
     async def send_entry(
@@ -81,8 +89,42 @@ class TelegramBot:
     async def send_log(self, player: str, match: str, log_data: dict) -> None:
         await self._send(alerts.log_text(player, match, log_data))
 
+    # ------------------------------------------------------------------
+    # Rule 2 alert senders
+    # ------------------------------------------------------------------
+
+    async def send_entry_r2(self, title: str, price: float, prev_price: float, reentry: bool = False) -> None:
+        await self._send(alerts.entry_r2_text(title, price, prev_price, reentry=reentry))
+
+    async def send_exit_r2(self, title: str, exit_price: float, entry_price: float | None, reason: str) -> None:
+        await self._send(alerts.exit_r2_text(title, exit_price, entry_price, reason))
+
+    # ------------------------------------------------------------------
+    # Rule 3 alert senders
+    # ------------------------------------------------------------------
+
+    async def send_entry_r3(
+        self, player: str, match: str, price: float, prev_price: float,
+        set1_score: str, reentry: bool = False,
+    ) -> None:
+        await self._send(alerts.entry_r3_text(player, match, price, prev_price, set1_score, reentry=reentry))
+
+    async def send_exit_r3(
+        self, player: str, match: str, exit_price: float,
+        entry_price: float | None, reason: str,
+    ) -> None:
+        await self._send(alerts.exit_r3_text(player, match, exit_price, entry_price, reason))
+
+    # ------------------------------------------------------------------
+    # Shared senders
+    # ------------------------------------------------------------------
+
     async def send_heartbeat(self, match_count: int, kalshi_count: int = 0, tradeable_names: list | None = None) -> None:
-        await self._send(alerts.heartbeat_text(match_count, kalshi_count, self._state.enabled, tradeable_names or []))
+        await self._send(alerts.heartbeat_text(
+            match_count, kalshi_count,
+            self._state.enabled, self._state.enabled_r2, self._state.enabled_r3,
+            tradeable_names or [],
+        ))
 
     async def send_error(self, message: str) -> None:
         await self._send(alerts.error_text(message))
