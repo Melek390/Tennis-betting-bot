@@ -200,35 +200,17 @@ def exit_r3_text(
 
 def heartbeat_text(
     match_count: int,
-    kalshi_count: int,
     enabled: bool,
     enabled_r2: bool = True,
     enabled_r3: bool = True,
-    tradeable_names: list[str] | None = None,
 ) -> str:
     matches_line = (
         f"{match_count} live match{'es' if match_count != 1 else ''}"
         if match_count else "No live matches"
     )
-    kalshi_line = (
-        f"{kalshi_count} tradeable market{'s' if kalshi_count != 1 else ''}"
-        if kalshi_count else "No tradeable markets"
-    )
-
-    names = tradeable_names or []
-    if names:
-        shown = names[:5]
-        match_lines = "\n".join(f"  • {n}" for n in shown)
-        if len(names) > 5:
-            match_lines += f"\n  <i>+{len(names) - 5} more match{'es' if len(names) - 5 != 1 else ''}</i>"
-        tradeable_block = f"\n{match_lines}"
-    else:
-        tradeable_block = ""
-
     return (
         f"<b>Heartbeat</b>\n\n"
         f"<b>Tennis API:</b> {matches_line}\n"
-        f"<b>Kalshi:</b> {kalshi_line}{tradeable_block}\n"
         f"<b>Rule 1:</b> {'ON' if enabled else 'OFF'}\n"
         f"<b>Rule 2:</b> {'ON' if enabled_r2 else 'OFF'}\n"
         f"<b>Rule 3:</b> {'ON' if enabled_r3 else 'OFF'}\n"

@@ -189,15 +189,13 @@ async def _kalshi_refresh_loop(
         await asyncio.sleep(MarketCache.REFRESH_INTERVAL)
 
 
-async def _heartbeat_loop(bot: TelegramBot, tennis: TennisAPIClient, kalshi: MarketCache | None) -> None:
+async def _heartbeat_loop(bot: TelegramBot, tennis: TennisAPIClient) -> None:
     await asyncio.sleep(15)
     while True:
         try:
-            live = tennis.live_matches
-            match_count = len(live)
-            tradeable_names, kalshi_count = kalshi.live_tradeable(live) if kalshi else ([], 0)
-            await bot.send_heartbeat(match_count, kalshi_count, tradeable_names)
-            logger.info("Heartbeat sent — %d live matches, %d tradeable kalshi markets", match_count, kalshi_count)
+            match_count = len(tennis.live_matches)
+            await bot.send_heartbeat(match_count)
+            logger.info("Heartbeat sent — %d live matches", match_count)
         except Exception as e:
             logger.error("Heartbeat error: %s", e)
         await asyncio.sleep(3600)
@@ -272,7 +270,7 @@ async def main() -> None:
     if kalshi_cache:
         tasks.append(asyncio.create_task(_kalshi_refresh_loop(kalshi_cache, state_mgr_r2, bot, bets_db)))
 
-    tasks.append(asyncio.create_task(_heartbeat_loop(bot, tennis, kalshi_cache)))
+    tasks.append(asyncio.create_task(_heartbeat_loop(bot, tennis)))
     tasks.append(asyncio.create_task(_state_cleanup_loop(state_mgr, state_mgr_r2, state_mgr_r3, r3_tracker, tennis, kalshi_cache)))
 
     async def on_update(match: MatchState) -> None:
