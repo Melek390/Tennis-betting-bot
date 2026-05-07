@@ -209,6 +209,9 @@ class StateManager:
 
     # ------------------------------------------------------------------
 
+    def get_entry_timestamp(self, match_id: str, player: str):
+        return self._data.get((match_id, player), _Entry()).entry_timestamp
+
     def is_in_position(self, match_id: str, player: str) -> bool:
         return self._data.get((match_id, player), _Entry()).state == RuleState.IN_POSITION
 

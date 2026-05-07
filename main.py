@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 
@@ -166,28 +167,38 @@ async def _process_r2(
     bot: TelegramBot,
     bets_db: BetsDB,
 ) -> None:
+    now = datetime.now(timezone.utc)
     for market in kalshi.markets:
-        prev  = kalshi.prev_yes_ask(market.ticker)
-        price = market.yes_ask
-        entry_met  = check_entry_r2(price, prev)
-        ctx        = state_mgr.get_exit_context(market.ticker, "yes")
-        exit_reason = check_exit_r2(price, ctx.get("entry_price"))
+        prev   = kalshi.prev_yes_ask(market.ticker)
+        price  = market.yes_ask
+        spread = round(market.yes_ask + market.no_ask - 1.0, 4)
+        mid    = round(price - spread / 2, 4)
+
+        entry_met = check_entry_r2(price, prev, spread=spread)
+        ctx       = state_mgr.get_exit_context(market.ticker, "yes")
+
+        entry_ts = state_mgr.get_entry_timestamp(market.ticker, "yes")
+        elapsed  = (now - entry_ts).total_seconds() if entry_ts else 0
+        exit_reason = check_exit_r2(price, ctx.get("entry_price"), elapsed_seconds=elapsed)
 
         signal = state_mgr.process(
             market.ticker, "yes",
             entry_met=entry_met,
             exit_met=exit_reason is not None,
             price=price,
+            entry_mid=mid if entry_met else None,
+            exit_mid=mid if exit_reason else None,
             exit_reason_str=exit_reason or "",
         )
-        state_mgr.tick_position(market.ticker, "yes", price=price)
+        state_mgr.tick_position(market.ticker, "yes", price=price, mid=mid)
 
         if signal in ("entry", "reentry"):
             await bot.send_entry_r2(market.title, price, prev or price, reentry=(signal == "reentry"))
         elif signal == "exit":
-            await bot.send_exit_r2(market.title, price, ctx.get("entry_price"), exit_reason or "")
+            exit_pnl = mid
+            await bot.send_exit_r2(market.title, exit_pnl, ctx.get("entry_price"), exit_reason or "")
             bets_db.log_exit("r2", market.title, market.title,
-                             ctx.get("entry_price") or price, price, exit_reason or "")
+                             ctx.get("entry_price") or price, exit_pnl, exit_reason or "")
 
 
 # ------------------------------------------------------------------

@@ -150,20 +150,37 @@ def check_entry_r3(
 # Rule 2 — Kalshi Spike Fade (price drop mean-reversion)
 # ------------------------------------------------------------------
 
-_R2_DROP_THRESHOLD = 0.12   # enter when YES price dropped ≥ 12¢ since last refresh
-_R2_PRICE_MIN      = 0.20   # don't enter below 20¢
-_R2_PRICE_MAX      = 0.75   # don't enter above 75¢
+# Valid entry drop ranges (¢): 12–20 OR ≥46. Skip 21–45 (losers/breakeven).
+_R2_DROP_LOW_MIN   = 0.12
+_R2_DROP_LOW_MAX   = 0.20
+_R2_DROP_HIGH_MIN  = 0.46
+_R2_SPREAD_MAX     = 0.01   # proxy for liquidity — avoids slippage outliers
+_R2_PRICE_MIN      = 0.20
+_R2_PRICE_MAX      = 0.75
 _R2_HARD_STOP      = 0.08   # stop loss at -8¢
 _R2_TAKE_PROFIT    = 0.10   # take profit at +10¢
+_R2_MAX_OPEN_SECS  = 15 * 60  # 15-minute time exit
 
 
-def check_entry_r2(price: float, prev_price: float | None) -> bool:
+def check_entry_r2(
+    price: float,
+    prev_price: float | None,
+    spread: float | None = None,
+) -> bool:
+    if spread is not None and spread > _R2_SPREAD_MAX:
+        return False
     if prev_price is None:
         return False
-    return (prev_price - price) >= _R2_DROP_THRESHOLD and _R2_PRICE_MIN <= price <= _R2_PRICE_MAX
+    drop = prev_price - price
+    valid_drop = (_R2_DROP_LOW_MIN <= drop <= _R2_DROP_LOW_MAX) or (drop >= _R2_DROP_HIGH_MIN)
+    return valid_drop and _R2_PRICE_MIN <= price <= _R2_PRICE_MAX
 
 
-def check_exit_r2(price: float, entry_price: float | None) -> str | None:
+def check_exit_r2(
+    price: float,
+    entry_price: float | None,
+    elapsed_seconds: float = 0,
+) -> str | None:
     if entry_price is None:
         return None
     pnl = price - entry_price
@@ -171,6 +188,9 @@ def check_exit_r2(price: float, entry_price: float | None) -> str | None:
         return f"Stop loss ({round(pnl * 100)}¢)"
     if pnl >= _R2_TAKE_PROFIT:
         return f"Take profit (+{round(pnl * 100)}¢)"
+    # Time exit — still open after 15 min with no TP hit
+    if elapsed_seconds >= _R2_MAX_OPEN_SECS:
+        return f"Time exit — {int(elapsed_seconds / 60)}m"
     return None
 
 
