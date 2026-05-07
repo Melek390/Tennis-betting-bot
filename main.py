@@ -161,11 +161,23 @@ async def _process_update(
 # Rule 2 — Kalshi Spike Fade update handler
 # ------------------------------------------------------------------
 
+def _match_state_for_market(market_title: str, live_matches: dict) -> str | None:
+    """Find the tennis match state that corresponds to a Kalshi market title."""
+    import re
+    for match in live_matches.values():
+        for player in (match.first_player, match.second_player):
+            last = player.strip().split()[-1]
+            if re.search(r"\b" + re.escape(last) + r"\b", market_title, re.IGNORECASE):
+                return compact_score(match)
+    return None
+
+
 async def _process_r2(
     kalshi: MarketCache,
     state_mgr: StateManager,
     bot: TelegramBot,
     bets_db: BetsDB,
+    live_matches: dict,
 ) -> None:
     now = datetime.now(timezone.utc)
     for market in kalshi.markets:
@@ -195,10 +207,12 @@ async def _process_r2(
         if signal in ("entry", "reentry"):
             await bot.send_entry_r2(market.title, price, prev or price, reentry=(signal == "reentry"))
         elif signal == "exit":
-            exit_pnl = mid
+            exit_pnl    = mid
+            match_state = _match_state_for_market(market.title, live_matches)
             await bot.send_exit_r2(market.title, exit_pnl, ctx.get("entry_price"), exit_reason or "")
             bets_db.log_exit("r2", market.title, market.title,
-                             ctx.get("entry_price") or price, exit_pnl, exit_reason or "")
+                             ctx.get("entry_price") or price, exit_pnl, exit_reason or "",
+                             match_state=match_state)
 
 
 # ------------------------------------------------------------------
@@ -210,12 +224,13 @@ async def _kalshi_refresh_loop(
     state_mgr_r2: StateManager,
     bot: TelegramBot,
     bets_db: BetsDB,
+    tennis: TennisAPIClient,
 ) -> None:
     while True:
         try:
             await cache.refresh()
             if bot.enabled_r2:
-                await _process_r2(cache, state_mgr_r2, bot, bets_db)
+                await _process_r2(cache, state_mgr_r2, bot, bets_db, tennis.live_matches)
         except Exception as e:
             logger.error("Kalshi refresh error: %s", e)
         await asyncio.sleep(MarketCache.REFRESH_INTERVAL)
@@ -300,7 +315,7 @@ async def main() -> None:
     tasks: list[asyncio.Task] = []
 
     if kalshi_cache:
-        tasks.append(asyncio.create_task(_kalshi_refresh_loop(kalshi_cache, state_mgr_r2, bot, bets_db)))
+        tasks.append(asyncio.create_task(_kalshi_refresh_loop(kalshi_cache, state_mgr_r2, bot, bets_db, tennis)))
 
     tasks.append(asyncio.create_task(_heartbeat_loop(bot, tennis)))
     tasks.append(asyncio.create_task(_state_cleanup_loop(state_mgr, state_mgr_r2, state_mgr_r3, r3_tracker, tennis, kalshi_cache)))

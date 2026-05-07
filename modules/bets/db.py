@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS {table} (
     entry_price REAL    NOT NULL,
     exit_price  REAL,
     pnl         REAL,
-    exit_reason TEXT
+    exit_reason TEXT,
+    match_state TEXT
 )
 """
 
@@ -45,6 +46,12 @@ class BetsDB:
         with self._conn() as conn:
             for table in _TABLES.values():
                 conn.execute(_CREATE.format(table=table))
+            # Migration: add match_state column to existing tables that predate it
+            for table in _TABLES.values():
+                try:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN match_state TEXT")
+                except sqlite3.OperationalError:
+                    pass  # column already exists
             conn.commit()
 
     # ------------------------------------------------------------------
@@ -53,12 +60,13 @@ class BetsDB:
 
     def log_exit(
         self,
-        rule: str,           # "r1", "r2", "r3"
+        rule: str,                      # "r1", "r2", "r3"
         player: str,
         match: str,
         entry_price: float,
         exit_price: float | None,
         reason: str,
+        match_state: str | None = None, # only populated for R2
     ) -> None:
         table = _TABLES.get(rule)
         if table is None:
@@ -68,9 +76,9 @@ class BetsDB:
         with self._conn() as conn:
             conn.execute(
                 f"INSERT INTO {table} "
-                "(timestamp, player, match, entry_price, exit_price, pnl, exit_reason) "
-                "VALUES (?,?,?,?,?,?,?)",
-                (ts, player, match, entry_price, exit_price, pnl, reason),
+                "(timestamp, player, match, entry_price, exit_price, pnl, exit_reason, match_state) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (ts, player, match, entry_price, exit_price, pnl, reason, match_state),
             )
             conn.commit()
 
@@ -105,18 +113,19 @@ class BetsDB:
         table = _TABLES.get(rule, "bets_r1")
         with self._conn() as conn:
             rows = conn.execute(
-                f"SELECT timestamp, player, match, entry_price, exit_price, pnl, exit_reason "
+                f"SELECT timestamp, player, match, entry_price, exit_price, pnl, exit_reason, match_state "
                 f"FROM {table} ORDER BY timestamp DESC"
             ).fetchall()
         sio = io.StringIO()
         writer = csv.writer(sio)
         writer.writerow([
             "timestamp", "player", "match",
-            "entry_price", "exit_price", "pnl_cents", "exit_reason",
+            "entry_price", "exit_price", "pnl_cents", "exit_reason", "match_state",
         ])
         for row in rows:
             writer.writerow([
                 row["timestamp"], row["player"], row["match"],
-                row["entry_price"], row["exit_price"], row["pnl"], row["exit_reason"],
+                row["entry_price"], row["exit_price"], row["pnl"],
+                row["exit_reason"], row["match_state"],
             ])
         return io.BytesIO(sio.getvalue().encode("utf-8"))
