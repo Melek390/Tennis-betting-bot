@@ -13,7 +13,7 @@ from modules.tennis_api.models import MatchState
 from rules import (
     check_entry, check_exit, compact_score, entry_detail, entry_state_label,
     check_entry_r2, check_exit_r2,
-    check_entry_r3,
+    check_entry_r3, is_deuce,
 )
 from state import StateManager
 from state_r3 import R3Tracker
@@ -52,52 +52,73 @@ async def _process_update(
 
         # ---- Rule 1 — Break Point / Advantage ----
         if bot.enabled:
-            entry_met   = check_entry(match, player_side, price,
-                                      prev_price=info.prev_price, spread=info.spread)
-            ctx         = state_mgr.get_exit_context(match.match_id, player_side)
-            exit_reason = check_exit(match, player_side, price=price, **ctx)
-
-            signal = state_mgr.process(
-                match.match_id, player_side,
-                entry_met=entry_met,
-                exit_met=exit_reason is not None,
-                price=price,
-                entry_state=entry_state_label(match) if entry_met else "",
-                entry_spread=info.spread if entry_met else None,
-                entry_mid=mid if entry_met else None,
-                entry_point_score=ps if entry_met else "",
-                exit_mid=mid if exit_reason else None,
-                exit_point_score=ps if exit_reason else "",
-                exit_reason_str=exit_reason or "",
-            )
-
-            state_mgr.tick_position(match.match_id, player_side,
-                                    price=price, mid=mid, point_score=ps)
-
-            log_ready = state_mgr.tick_post_exit(match.match_id, player_side, price, mid, ps)
-
             player_name = match.player_name(player_side)
             score       = compact_score(match)
 
-            if log_ready:
-                log_data = state_mgr.get_log_data(match.match_id, player_side)
-                state_mgr.mark_log_sent(match.match_id, player_side)
-                await bot.send_log(player_name, match.match_name, log_data)
+            # Fast deuce exit — Tennis API only, fires before Kalshi check
+            if state_mgr.is_in_position(match.match_id, player_side) and is_deuce(match):
+                last_p, last_m = state_mgr.last_price_mid(match.match_id, player_side)
+                ctx_deuce = state_mgr.get_exit_context(match.match_id, player_side)
+                signal = state_mgr.process(
+                    match.match_id, player_side,
+                    entry_met=False, exit_met=True,
+                    price=last_p, exit_mid=last_m,
+                    exit_point_score=ps, exit_reason_str="Deuce",
+                )
+                if signal == "exit":
+                    exit_pnl = last_m if last_m is not None else last_p
+                    stats = state_mgr.get_position_stats(match.match_id, player_side)
+                    await bot.send_exit(player_name, match.match_name, score,
+                                        exit_price=exit_pnl, stats=stats, exit_reason="Deuce")
+                    bets_db.log_exit("r1", player_name, match.match_name,
+                                     stats.get("entry_price") or last_p, exit_pnl, "Deuce")
 
-            if signal == "entry":
-                detail = entry_detail(match, player_name, price)
-                await bot.send_entry(player_name, match.match_name, score, price,
-                                     detail, spread=info.spread)
-            elif signal == "reentry":
-                detail = entry_detail(match, player_name, price)
-                await bot.send_reentry(player_name, match.match_name, score, price,
-                                       detail, spread=info.spread)
-            elif signal == "exit":
-                stats = state_mgr.get_position_stats(match.match_id, player_side)
-                await bot.send_exit(player_name, match.match_name, score,
-                                    exit_price=price, stats=stats, exit_reason=exit_reason)
-                bets_db.log_exit("r1", player_name, match.match_name,
-                                 stats.get("entry_price") or price, price, exit_reason or "")
+            elif info is not None:
+                # Normal Kalshi-priced R1 processing
+                entry_met   = check_entry(match, player_side, price,
+                                          prev_price=info.prev_price, spread=info.spread)
+                ctx         = state_mgr.get_exit_context(match.match_id, player_side)
+                exit_reason = check_exit(match, player_side, price=price, **ctx)
+                exit_pnl    = mid if mid is not None else price
+
+                signal = state_mgr.process(
+                    match.match_id, player_side,
+                    entry_met=entry_met,
+                    exit_met=exit_reason is not None,
+                    price=price,
+                    entry_state=entry_state_label(match) if entry_met else "",
+                    entry_spread=info.spread if entry_met else None,
+                    entry_mid=mid if entry_met else None,
+                    entry_point_score=ps if entry_met else "",
+                    exit_mid=mid if exit_reason else None,
+                    exit_point_score=ps if exit_reason else "",
+                    exit_reason_str=exit_reason or "",
+                )
+
+                state_mgr.tick_position(match.match_id, player_side,
+                                        price=price, mid=mid, point_score=ps)
+
+                log_ready = state_mgr.tick_post_exit(match.match_id, player_side, price, mid, ps)
+
+                if log_ready:
+                    log_data = state_mgr.get_log_data(match.match_id, player_side)
+                    state_mgr.mark_log_sent(match.match_id, player_side)
+                    await bot.send_log(player_name, match.match_name, log_data)
+
+                if signal == "entry":
+                    detail = entry_detail(match, player_name, price)
+                    await bot.send_entry(player_name, match.match_name, score, price,
+                                         detail, spread=info.spread)
+                elif signal == "reentry":
+                    detail = entry_detail(match, player_name, price)
+                    await bot.send_reentry(player_name, match.match_name, score, price,
+                                           detail, spread=info.spread)
+                elif signal == "exit":
+                    stats = state_mgr.get_position_stats(match.match_id, player_side)
+                    await bot.send_exit(player_name, match.match_name, score,
+                                        exit_price=exit_pnl, stats=stats, exit_reason=exit_reason)
+                    bets_db.log_exit("r1", player_name, match.match_name,
+                                     stats.get("entry_price") or price, exit_pnl, exit_reason or "")
 
         # ---- Rule 3 — Back Fav after Set Loss ----
         # Always update game tracking regardless of enabled state

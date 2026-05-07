@@ -209,6 +209,17 @@ class StateManager:
 
     # ------------------------------------------------------------------
 
+    def is_in_position(self, match_id: str, player: str) -> bool:
+        return self._data.get((match_id, player), _Entry()).state == RuleState.IN_POSITION
+
+    def last_price_mid(self, match_id: str, player: str) -> tuple[float | None, float | None]:
+        """Returns (price, mid) from the most recent tick, falling back to entry values."""
+        e = self._data.get((match_id, player), _Entry())
+        if e.tick_history:
+            last = e.tick_history[-1]
+            return last[0], last[1]
+        return e.entry_price, e.entry_mid
+
     def cleanup(self, active_match_ids: set[str]) -> None:
         dead = [k for k in self._data if k[0] not in active_match_ids]
         for k in dead:

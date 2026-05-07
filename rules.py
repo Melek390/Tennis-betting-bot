@@ -4,7 +4,7 @@ _PRICE_CAP   = 0.60
 _PRICE_FLOOR = 0.10
 
 _JUMP_THRESHOLD = 0.07
-_SPREAD_MAX     = 0.05
+_SPREAD_MAX     = 0.01
 
 _HARD_STOP           = 0.10   # hard stop at -10¢ regardless of context
 _FAST_FAILURE_STOP   = 0.06   # early stop at -6¢ if move stalls (> 2 ticks in)
@@ -62,6 +62,11 @@ def check_exit(
         return f"Fast profit (+{round(pnl * 100)}¢)"
 
     return None
+
+
+def is_deuce(match: MatchState) -> bool:
+    """True when point score reaches 40-40 — break point opportunity is gone."""
+    return match.point_score == "40 - 40" and not match.is_tiebreak
 
 
 def entry_state_label(match: MatchState) -> str:
