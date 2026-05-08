@@ -250,11 +250,11 @@ async def _process_r2(
                 "R2", "EXIT",
                 market.title,
                 entry_price=ep,
-                exit_price=mid,
+                exit_price=price,
                 reason=exit_reason or "",
             ))
             bets_db.log_exit("r2", market.title, market.title,
-                             ep or price, mid, exit_reason or "",
+                             ep or price, price, exit_reason or "",
                              match_state_entry=stats_r2.get("entry_match_state"),
                              match_state_exit=r2_match_state)
 
