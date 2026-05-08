@@ -4,7 +4,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from telegram.ext import Application
 
-from .messages.alerts import Signal, heartbeat_text, error_text
+from .messages.alerts import Signal, log_text, heartbeat_text, error_text
 from .routers import main_router
 from .state import BotState, STATE_KEY
 
@@ -66,6 +66,9 @@ class TelegramBot:
 
     async def send_signal(self, signal: Signal) -> None:
         await self._send(signal.render())
+
+    async def send_log(self, player: str, match: str, log_data: dict) -> None:
+        await self._send(log_text(player, match, log_data))
 
     # ------------------------------------------------------------------
     # Shared senders

@@ -112,6 +112,12 @@ async def _process_update(
                 state_mgr.tick_position(match.match_id, player_side,
                                         price=price, mid=mid, point_score=ps)
 
+                log_ready = state_mgr.tick_post_exit(match.match_id, player_side, price, mid, ps)
+                if log_ready:
+                    log_data = state_mgr.get_log_data(match.match_id, player_side)
+                    state_mgr.mark_log_sent(match.match_id, player_side)
+                    await bot.send_log(player_name, match.match_name, log_data)
+
                 if signal in ("entry", "reentry"):
                     await bot.send_signal(Signal(
                         "R1", "ENTRY" if signal == "entry" else "RE-ENTRY",
