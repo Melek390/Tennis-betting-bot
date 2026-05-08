@@ -4,7 +4,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from telegram.ext import Application
 
-from .messages import alerts
+from .messages.alerts import Signal, heartbeat_text, error_text
 from .routers import main_router
 from .state import BotState, STATE_KEY
 
@@ -61,69 +61,21 @@ class TelegramBot:
                 logger.error("Telegram send failed for %s: %s", chat_id, e)
 
     # ------------------------------------------------------------------
-    # Rule 1 alert senders
+    # Signal sender (all rules)
     # ------------------------------------------------------------------
 
-    async def send_entry(
-        self, player: str, match: str, score: str, price: float,
-        detail: str = "", spread: float | None = None,
-    ) -> None:
-        await self._send(alerts.entry_text(player, match, score, price, detail, spread=spread))
-
-    async def send_exit(
-        self, player: str, match: str, score: str,
-        exit_price: float | None = None,
-        stats: dict | None = None,
-        exit_reason: str | None = None,
-    ) -> None:
-        await self._send(alerts.exit_text(player, match, score,
-                                          exit_price=exit_price, stats=stats,
-                                          exit_reason=exit_reason))
-
-    async def send_reentry(
-        self, player: str, match: str, score: str, price: float,
-        detail: str = "", spread: float | None = None,
-    ) -> None:
-        await self._send(alerts.reentry_text(player, match, score, price, detail, spread=spread))
-
-    async def send_log(self, player: str, match: str, log_data: dict) -> None:
-        await self._send(alerts.log_text(player, match, log_data))
-
-    # ------------------------------------------------------------------
-    # Rule 2 alert senders
-    # ------------------------------------------------------------------
-
-    async def send_entry_r2(self, title: str, price: float, prev_price: float, reentry: bool = False) -> None:
-        await self._send(alerts.entry_r2_text(title, price, prev_price, reentry=reentry))
-
-    async def send_exit_r2(self, title: str, exit_price: float, entry_price: float | None, reason: str) -> None:
-        await self._send(alerts.exit_r2_text(title, exit_price, entry_price, reason))
-
-    # ------------------------------------------------------------------
-    # Rule 3 alert senders
-    # ------------------------------------------------------------------
-
-    async def send_entry_r3(
-        self, player: str, match: str, price: float, prev_price: float,
-        set1_score: str, reentry: bool = False,
-    ) -> None:
-        await self._send(alerts.entry_r3_text(player, match, price, prev_price, set1_score, reentry=reentry))
-
-    async def send_exit_r3(
-        self, player: str, match: str, exit_price: float,
-        entry_price: float | None, reason: str,
-    ) -> None:
-        await self._send(alerts.exit_r3_text(player, match, exit_price, entry_price, reason))
+    async def send_signal(self, signal: Signal) -> None:
+        await self._send(signal.render())
 
     # ------------------------------------------------------------------
     # Shared senders
     # ------------------------------------------------------------------
 
     async def send_heartbeat(self, match_count: int) -> None:
-        await self._send(alerts.heartbeat_text(
+        await self._send(heartbeat_text(
             match_count,
             self._state.enabled, self._state.enabled_r2, self._state.enabled_r3,
         ))
 
     async def send_error(self, message: str) -> None:
-        await self._send(alerts.error_text(message))
+        await self._send(error_text(message))

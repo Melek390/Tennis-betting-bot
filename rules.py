@@ -107,11 +107,11 @@ def entry_detail(match: MatchState, player_name: str, price: float) -> str:
 # ------------------------------------------------------------------
 
 _R3_PRICE_MIN      = 0.65   # only back strong favourites (≥65¢)
-_R3_PRICE_DROP_MIN = 0.10   # enter only when market overreacted ≥10¢ drop
+_R3_PRICE_DROP_MIN = 0.05   # enter only when market overreacted ≥5¢ drop
 _R3_MAX_SET2_GAMES = 2      # enter only in first 2 games of set 2
 
-# Set 1 must have been a close loss (not a bagel)
-_SET1_CLOSE_LOSSES = frozenset({"5-7", "6-7"})
+# Set 1 must have been a close loss (not a bagel or 1-6/2-6)
+_SET1_CLOSE_LOSSES = frozenset({"4-6", "5-7", "6-7"})
 
 
 def check_entry_r3(
