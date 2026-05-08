@@ -18,6 +18,7 @@ class _Entry:
     entry_state: str = ""
     entry_point_score: str = ""
     entry_spread: float | None = None
+    entry_match_state: str = ""
     ticks_in_position: int = 0
     tick_history: list = field(default_factory=list)   # (price, mid, point_score)
     mae: float = 0.0
@@ -59,6 +60,7 @@ class StateManager:
         entry_spread: float | None = None,
         entry_mid: float | None = None,
         entry_point_score: str = "",
+        entry_match_state: str = "",
         exit_mid: float | None = None,
         exit_point_score: str = "",
         exit_reason_str: str = "",
@@ -75,6 +77,7 @@ class StateManager:
             e.entry_state = entry_state
             e.entry_point_score = entry_point_score
             e.entry_spread = entry_spread
+            e.entry_match_state = entry_match_state
             e.tick_history = []
             e.mae = 0.0
             e.mfe = 0.0
@@ -110,6 +113,7 @@ class StateManager:
             e.entry_state = entry_state
             e.entry_point_score = entry_point_score
             e.entry_spread = entry_spread
+            e.entry_match_state = entry_match_state
             e.tick_history = []
             e.mae = 0.0
             e.mfe = 0.0
@@ -181,11 +185,12 @@ class StateManager:
     def get_position_stats(self, match_id: str, player: str) -> dict:
         e = self._get(match_id, player)
         return {
-            "entry_price":      e.entry_price,
-            "entry_timestamp":  e.entry_timestamp,
-            "entry_state":      e.entry_state,
-            "entry_spread":     e.entry_spread,
-            "price_after_tick": [t[0] for t in e.tick_history],
+            "entry_price":       e.entry_price,
+            "entry_timestamp":   e.entry_timestamp,
+            "entry_state":       e.entry_state,
+            "entry_spread":      e.entry_spread,
+            "entry_match_state": e.entry_match_state,
+            "price_after_tick":  [t[0] for t in e.tick_history],
         }
 
     def get_log_data(self, match_id: str, player: str) -> dict:

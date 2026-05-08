@@ -82,7 +82,9 @@ async def _process_update(
                         reason="Deuce",
                     ))
                     bets_db.log_exit("r1", player_name, match.match_name,
-                                     ep, exit_pnl, "Deuce")
+                                     ep, exit_pnl, "Deuce",
+                                     match_state_entry=stats.get("entry_match_state"),
+                                     match_state_exit=score)
 
             elif info is not None:
                 # Normal Kalshi-priced R1 processing
@@ -101,6 +103,7 @@ async def _process_update(
                     entry_spread=info.spread if entry_met else None,
                     entry_mid=mid if entry_met else None,
                     entry_point_score=ps if entry_met else "",
+                    entry_match_state=score if entry_met else "",
                     exit_mid=mid if exit_reason else None,
                     exit_point_score=ps if exit_reason else "",
                     exit_reason_str=exit_reason or "",
@@ -128,7 +131,9 @@ async def _process_update(
                         reason=exit_reason or "",
                     ))
                     bets_db.log_exit("r1", player_name, match.match_name,
-                                     ep, exit_pnl, exit_reason or "")
+                                     ep, exit_pnl, exit_reason or "",
+                                     match_state_entry=stats.get("entry_match_state"),
+                                     match_state_exit=score)
 
         # ---- Rule 3 — Back Fav after Set Loss ----
         if bot.enabled_r3:
@@ -136,11 +141,13 @@ async def _process_update(
             ctx_r3      = state_mgr_r3.get_exit_context(match.match_id, player_side)
             exit_r3     = r3_tracker.check_exit(match.match_id, player_side, match, price)
 
+            r3_score  = compact_score(match)
             signal_r3 = state_mgr_r3.process(
                 match.match_id, player_side,
                 entry_met=set1_score is not None,
                 exit_met=exit_r3 is not None,
                 price=price,
+                entry_match_state=r3_score if set1_score is not None else "",
                 exit_reason_str=exit_r3 or "",
             )
             state_mgr_r3.tick_position(match.match_id, player_side, price=price)
@@ -158,7 +165,8 @@ async def _process_update(
                 ))
             elif signal_r3 == "exit":
                 r3_tracker.reset_entry(match.match_id, player_side)
-                ep_r3 = ctx_r3.get("entry_price")
+                ep_r3    = ctx_r3.get("entry_price")
+                stats_r3 = state_mgr_r3.get_position_stats(match.match_id, player_side)
                 await bot.send_signal(Signal(
                     "R3", "EXIT",
                     f"{player_name_r3} — {match.match_name}",
@@ -167,7 +175,9 @@ async def _process_update(
                     reason=exit_r3 or "",
                 ))
                 bets_db.log_exit("r3", player_name_r3, match.match_name,
-                                 ep_r3 or price, price, exit_r3 or "")
+                                 ep_r3 or price, price, exit_r3 or "",
+                                 match_state_entry=stats_r3.get("entry_match_state"),
+                                 match_state_exit=r3_score)
 
 
 # ------------------------------------------------------------------
@@ -206,12 +216,14 @@ async def _process_r2(
         elapsed  = (now - entry_ts).total_seconds() if entry_ts else 0
         exit_reason = check_exit_r2(price, ctx.get("entry_price"), elapsed_seconds=elapsed)
 
+        r2_match_state = _match_state_for_market(market.title, live_matches)
         signal = state_mgr.process(
             market.ticker, "yes",
             entry_met=entry_met,
             exit_met=exit_reason is not None,
             price=price,
             entry_mid=mid if entry_met else None,
+            entry_match_state=r2_match_state or "" if entry_met else "",
             exit_mid=mid if exit_reason else None,
             exit_reason_str=exit_reason or "",
         )
@@ -226,8 +238,8 @@ async def _process_r2(
                 entry_price=price,
             ))
         elif signal == "exit":
-            ep          = ctx.get("entry_price")
-            match_state = _match_state_for_market(market.title, live_matches)
+            ep       = ctx.get("entry_price")
+            stats_r2 = state_mgr.get_position_stats(market.ticker, "yes")
             await bot.send_signal(Signal(
                 "R2", "EXIT",
                 market.title,
@@ -237,7 +249,8 @@ async def _process_r2(
             ))
             bets_db.log_exit("r2", market.title, market.title,
                              ep or price, mid, exit_reason or "",
-                             match_state=match_state)
+                             match_state_entry=stats_r2.get("entry_match_state"),
+                             match_state_exit=r2_match_state)
 
 
 # ------------------------------------------------------------------
