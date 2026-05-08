@@ -126,7 +126,7 @@ def check_entry_r3(
     """
     if prev_price is None or (prev_price - price) < _R3_PRICE_DROP_MIN:
         return None
-    if price < _R3_PRICE_MIN:
+    if prev_price < _R3_PRICE_MIN:   # player must have BEEN a strong favourite before the drop
         return None
     if match.current_set != 2:
         return None

@@ -178,7 +178,8 @@ class StateManager:
     def get_exit_context(self, match_id: str, player: str) -> dict:
         e = self._get(match_id, player)
         return {
-            "entry_price":        e.entry_price,
+            "entry_price":         e.entry_price,
+            "entry_mid":           e.entry_mid,
             "updates_since_entry": e.ticks_in_position,
         }
 
