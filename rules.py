@@ -106,9 +106,9 @@ def entry_detail(match: MatchState, player_name: str, price: float) -> str:
 # Rule 3 — Back Favourite after Set Loss
 # ------------------------------------------------------------------
 
-_R3_PRICE_MIN      = 0.65   # only back strong favourites (≥65¢)
-_R3_PRICE_DROP_MIN = 0.05   # enter only when market overreacted ≥5¢ drop
-_R3_MAX_SET2_GAMES = 2      # enter only in first 2 games of set 2
+_R3_PRICE_MIN      = 0.65   # player must have BEEN a strong favourite (prev_price)
+_R3_PRICE_FLOOR    = 0.35   # player must still have a meaningful chance
+_R3_MAX_SET2_GAMES = 4      # enter within first 4 games of set 2
 
 # Set 1 must have been a close loss (not a bagel or 1-6/2-6)
 _SET1_CLOSE_LOSSES = frozenset({"4-6", "5-7", "6-7"})
@@ -124,9 +124,13 @@ def check_entry_r3(
     Returns the set-1 score string (e.g. '5-7') if all R3 entry conditions
     are met, or None if they are not.  Truthy = enter; None = pass.
     """
-    if prev_price is None or (prev_price - price) < _R3_PRICE_DROP_MIN:
+    if prev_price is None:
         return None
-    if prev_price < _R3_PRICE_MIN:   # player must have BEEN a strong favourite before the drop
+    if prev_price < _R3_PRICE_MIN:   # was a strong favourite before set loss
+        return None
+    if price >= prev_price:           # price must have actually dropped
+        return None
+    if price < _R3_PRICE_FLOOR:       # still a live contender
         return None
     if match.current_set != 2:
         return None
