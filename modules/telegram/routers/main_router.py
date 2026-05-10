@@ -12,7 +12,6 @@ def setup(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(callbacks.show_help,       pattern="^help$"))
 
     # Rule toggles
-    app.add_handler(CallbackQueryHandler(callbacks.toggle_rule,    pattern=r"^toggle_rule$"))
     app.add_handler(CallbackQueryHandler(callbacks.toggle_rule_r2, pattern=r"^toggle_rule_r2$"))
     app.add_handler(CallbackQueryHandler(callbacks.toggle_rule_r3, pattern=r"^toggle_rule_r3$"))
 

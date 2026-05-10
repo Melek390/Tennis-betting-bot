@@ -21,7 +21,7 @@ async def show_main(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
     query = update.callback_query
     await query.answer()
     await query.edit_message_text(
-        text=main_menu_text(state.enabled, state.enabled_r2, state.enabled_r3),
+        text=main_menu_text(state.enabled_r2, state.enabled_r3),
         reply_markup=main_menu.build(),
         parse_mode=ParseMode.HTML,
     )
@@ -33,7 +33,7 @@ async def show_monitoring(update: Update, _context: ContextTypes.DEFAULT_TYPE) -
     await query.answer()
     await query.edit_message_text(
         text=rules_menu_text(),
-        reply_markup=rules_menu.build(state.enabled, state.enabled_r2, state.enabled_r3),
+        reply_markup=rules_menu.build(state.enabled_r2, state.enabled_r3),
         parse_mode=ParseMode.HTML,
     )
 
@@ -54,18 +54,6 @@ async def show_help(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
 # Rule toggles
 # ------------------------------------------------------------------
 
-async def toggle_rule(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
-    state = _context.application.bot_data[STATE_KEY]
-    query = update.callback_query
-    await query.answer()
-    state.enabled = not state.enabled
-    await query.edit_message_text(
-        text=rules_menu_text(),
-        reply_markup=rules_menu.build(state.enabled, state.enabled_r2, state.enabled_r3),
-        parse_mode=ParseMode.HTML,
-    )
-
-
 async def toggle_rule_r2(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     state = _context.application.bot_data[STATE_KEY]
     query = update.callback_query
@@ -73,7 +61,7 @@ async def toggle_rule_r2(update: Update, _context: ContextTypes.DEFAULT_TYPE) ->
     state.enabled_r2 = not state.enabled_r2
     await query.edit_message_text(
         text=rules_menu_text(),
-        reply_markup=rules_menu.build(state.enabled, state.enabled_r2, state.enabled_r3),
+        reply_markup=rules_menu.build(state.enabled_r2, state.enabled_r3),
         parse_mode=ParseMode.HTML,
     )
 
@@ -85,7 +73,7 @@ async def toggle_rule_r3(update: Update, _context: ContextTypes.DEFAULT_TYPE) ->
     state.enabled_r3 = not state.enabled_r3
     await query.edit_message_text(
         text=rules_menu_text(),
-        reply_markup=rules_menu.build(state.enabled, state.enabled_r2, state.enabled_r3),
+        reply_markup=rules_menu.build(state.enabled_r2, state.enabled_r3),
         parse_mode=ParseMode.HTML,
     )
 
@@ -119,7 +107,6 @@ async def show_bets_rule(update: Update, _context: ContextTypes.DEFAULT_TYPE) ->
 
 async def export_csv(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    # callback_data = "export_csv_r1" / "export_csv_r2" / "export_csv_r3"
     rule  = query.data.rsplit("_", 1)[-1]   # "r1", "r2", "r3"
     db    = _context.application.bot_data[BETS_DB_KEY]
     buf   = db.export_csv(rule)

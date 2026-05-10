@@ -4,7 +4,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from telegram.ext import Application
 
-from .messages.alerts import Signal, log_text, heartbeat_text, error_text
+from .messages.alerts import Signal, log_r2_text, heartbeat_text, error_text
 from .routers import main_router
 from .state import BotState, STATE_KEY
 
@@ -18,10 +18,6 @@ class TelegramBot:
         self.app = Application.builder().token(token).build()
         self.app.bot_data[STATE_KEY] = self._state
         main_router.setup(self.app)
-
-    @property
-    def enabled(self) -> bool:
-        return self._state.enabled
 
     @property
     def enabled_r2(self) -> bool:
@@ -67,8 +63,8 @@ class TelegramBot:
     async def send_signal(self, signal: Signal) -> None:
         await self._send(signal.render())
 
-    async def send_log(self, player: str, match: str, log_data: dict) -> None:
-        await self._send(log_text(player, match, log_data))
+    async def send_log_r2(self, market_title: str, log_data: dict) -> None:
+        await self._send(log_r2_text(market_title, log_data))
 
     # ------------------------------------------------------------------
     # Shared senders
@@ -77,7 +73,7 @@ class TelegramBot:
     async def send_heartbeat(self, match_count: int) -> None:
         await self._send(heartbeat_text(
             match_count,
-            self._state.enabled, self._state.enabled_r2, self._state.enabled_r3,
+            self._state.enabled_r2, self._state.enabled_r3,
         ))
 
     async def send_error(self, message: str) -> None:

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -13,11 +14,12 @@ from modules.telegram.messages.alerts import Signal
 from modules.tennis_api.client import TennisAPIClient
 from modules.tennis_api.models import MatchState
 from rules import (
-    check_entry, check_exit, compact_score, entry_state_label,
+    compact_score,
     check_entry_r2, check_exit_r2,
-    check_entry_r3, is_deuce,
+    check_entry_r3,
 )
 from state import StateManager
+from state_r2 import R2Tracker
 from state_r3 import R3Tracker
 
 load_dotenv()
@@ -30,13 +32,25 @@ logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------
-# Core update handler — called on every tennis WebSocket message
+# Helper — cross-reference Kalshi market title to live Tennis match
+# ------------------------------------------------------------------
+
+def _match_for_market(market_title: str, live_matches: dict) -> MatchState | None:
+    for match in live_matches.values():
+        for player in (match.first_player, match.second_player):
+            last = player.strip().split()[-1]
+            if re.search(r"\b" + re.escape(last) + r"\b", market_title, re.IGNORECASE):
+                return match
+    return None
+
+
+# ------------------------------------------------------------------
+# Tennis WebSocket update handler — R3 only
 # ------------------------------------------------------------------
 
 async def _process_update(
     match: MatchState,
     kalshi: MarketCache,
-    state_mgr: StateManager,
     state_mgr_r3: StateManager,
     r3_tracker: R3Tracker,
     bot: TelegramBot,
@@ -53,93 +67,6 @@ async def _process_update(
 
         price = info.price
         mid   = (price - info.spread / 2) if info.spread is not None else None
-        ps    = match.point_score
-
-        # ---- Rule 1 — Break Point / Advantage ----
-        if bot.enabled:
-            player_name = match.player_name(player_side)
-            score       = compact_score(match)
-
-            # Fast deuce exit — Tennis API only, fires before Kalshi check
-            if state_mgr.is_in_position(match.match_id, player_side) and is_deuce(match):
-                last_p, last_m = state_mgr.last_price_mid(match.match_id, player_side)
-                signal = state_mgr.process(
-                    match.match_id, player_side,
-                    entry_met=False, exit_met=True,
-                    price=last_p, exit_mid=last_m,
-                    exit_point_score=ps, exit_reason_str="Deuce",
-                )
-                if signal == "exit":
-                    exit_pnl = last_m if last_m is not None else last_p
-                    stats    = state_mgr.get_position_stats(match.match_id, player_side)
-                    ep       = stats.get("entry_price") or last_p
-                    await bot.send_signal(Signal(
-                        "R1", "EXIT",
-                        f"{player_name} — {match.match_name}",
-                        detail=score,
-                        entry_price=ep,
-                        exit_price=exit_pnl,
-                        reason="Deuce",
-                    ))
-                    bets_db.log_exit("r1", player_name, match.match_name,
-                                     ep, exit_pnl, "Deuce",
-                                     match_state_entry=stats.get("entry_match_state"),
-                                     match_state_exit=score)
-
-            elif info is not None:
-                # Normal Kalshi-priced R1 processing
-                entry_met   = check_entry(match, player_side, price,
-                                          prev_price=info.prev_price, spread=info.spread)
-                ctx         = state_mgr.get_exit_context(match.match_id, player_side)
-                exit_reason = check_exit(match, player_side, price=price, **ctx)
-                exit_pnl    = mid if mid is not None else price
-
-                signal = state_mgr.process(
-                    match.match_id, player_side,
-                    entry_met=entry_met,
-                    exit_met=exit_reason is not None,
-                    price=price,
-                    entry_state=entry_state_label(match) if entry_met else "",
-                    entry_spread=info.spread if entry_met else None,
-                    entry_mid=mid if entry_met else None,
-                    entry_point_score=ps if entry_met else "",
-                    entry_match_state=score if entry_met else "",
-                    exit_mid=mid if exit_reason else None,
-                    exit_point_score=ps if exit_reason else "",
-                    exit_reason_str=exit_reason or "",
-                )
-
-                state_mgr.tick_position(match.match_id, player_side,
-                                        price=price, mid=mid, point_score=ps)
-
-                log_ready = state_mgr.tick_post_exit(match.match_id, player_side, price, mid, ps)
-                if log_ready:
-                    log_data = state_mgr.get_log_data(match.match_id, player_side)
-                    state_mgr.mark_log_sent(match.match_id, player_side)
-                    await bot.send_log(player_name, match.match_name, log_data)
-
-                if signal in ("entry", "reentry"):
-                    await bot.send_signal(Signal(
-                        "R1", "ENTRY" if signal == "entry" else "RE-ENTRY",
-                        f"{player_name} — {match.match_name}",
-                        detail=score,
-                        entry_price=price,
-                    ))
-                elif signal == "exit":
-                    stats = state_mgr.get_position_stats(match.match_id, player_side)
-                    ep    = stats.get("entry_price") or price
-                    await bot.send_signal(Signal(
-                        "R1", "EXIT",
-                        f"{player_name} — {match.match_name}",
-                        detail=score,
-                        entry_price=ep,
-                        exit_price=exit_pnl,
-                        reason=exit_reason or "",
-                    ))
-                    bets_db.log_exit("r1", player_name, match.match_name,
-                                     ep, exit_pnl, exit_reason or "",
-                                     match_state_entry=stats.get("entry_match_state"),
-                                     match_state_exit=score)
 
         # ---- Rule 3 — Back Fav after Set Loss ----
         if bot.enabled_r3:
@@ -191,20 +118,10 @@ async def _process_update(
 # Rule 2 — Kalshi Spike Fade update handler
 # ------------------------------------------------------------------
 
-def _match_state_for_market(market_title: str, live_matches: dict) -> str | None:
-    """Find the tennis match state that corresponds to a Kalshi market title."""
-    import re
-    for match in live_matches.values():
-        for player in (match.first_player, match.second_player):
-            last = player.strip().split()[-1]
-            if re.search(r"\b" + re.escape(last) + r"\b", market_title, re.IGNORECASE):
-                return compact_score(match)
-    return None
-
-
 async def _process_r2(
     kalshi: MarketCache,
     state_mgr: StateManager,
+    r2_tracker: R2Tracker,
     bot: TelegramBot,
     bets_db: BetsDB,
     live_matches: dict,
@@ -215,16 +132,20 @@ async def _process_r2(
         price  = market.yes_ask
         spread = round(market.yes_ask + market.no_ask - 1.0, 4)
         mid    = round(price - spread / 2, 4)
+        match  = _match_for_market(market.title, live_matches)
 
-        entry_met = check_entry_r2(price, prev, spread=spread)
-        ctx       = state_mgr.get_exit_context(market.ticker, "yes")
-
-        entry_ts  = state_mgr.get_entry_timestamp(market.ticker, "yes")
-        elapsed   = (now - entry_ts).total_seconds() if entry_ts else 0
+        entry_met    = check_entry_r2(price, prev)
+        ctx          = state_mgr.get_exit_context(market.ticker, "yes")
+        entry_ts     = state_mgr.get_entry_timestamp(market.ticker, "yes")
+        elapsed      = (now - entry_ts).total_seconds() if entry_ts else 0
         entry_mid_r2 = ctx.get("entry_mid") or ctx.get("entry_price")
         exit_reason  = check_exit_r2(mid, entry_mid_r2, elapsed_seconds=elapsed)
 
-        r2_match_state = _match_state_for_market(market.title, live_matches)
+        r2_match_state = compact_score(match) if match else None
+
+        was_active      = r2_tracker.has_active(market.ticker)
+        had_pending_log = r2_tracker.has_pending_log(market.ticker)
+
         signal = state_mgr.process(
             market.ticker, "yes",
             entry_met=entry_met,
@@ -238,6 +159,7 @@ async def _process_r2(
         state_mgr.tick_position(market.ticker, "yes", price=price, mid=mid)
 
         if signal in ("entry", "reentry"):
+            r2_tracker.set_entry(market.ticker, price, mid, spread, prev, match)
             drop = round((prev - price) * 100) if prev is not None else 0
             await bot.send_signal(Signal(
                 "R2", "ENTRY" if signal == "entry" else "RE-ENTRY",
@@ -245,7 +167,9 @@ async def _process_r2(
                 detail=f"Drop {drop}¢",
                 entry_price=mid,
             ))
+
         elif signal == "exit":
+            r2_tracker.set_exit(market.ticker, price, mid, exit_reason or "")
             stats_r2 = state_mgr.get_position_stats(market.ticker, "yes")
             ep_r2    = ctx.get("entry_mid") or ctx.get("entry_price")
             await bot.send_signal(Signal(
@@ -260,6 +184,20 @@ async def _process_r2(
                              match_state_entry=stats_r2.get("entry_match_state"),
                              match_state_exit=r2_match_state)
 
+        elif was_active:
+            # Still in position — record an in-position tick for the LOG
+            second_break = entry_mid_r2 is not None and mid < entry_mid_r2 - 0.10
+            r2_tracker.tick(market.ticker, mid, match, second_break)
+
+        elif had_pending_log:
+            # Post-exit — collect ticks for LOG, send when 2 collected
+            log_ready = r2_tracker.tick_post_exit(market.ticker, mid, match)
+            if log_ready:
+                log_data = r2_tracker.get_log_data(market.ticker)
+                r2_tracker.mark_log_sent(market.ticker)
+                if log_data:
+                    await bot.send_log_r2(market.title, log_data)
+
 
 # ------------------------------------------------------------------
 # Background loops
@@ -268,6 +206,7 @@ async def _process_r2(
 async def _kalshi_refresh_loop(
     cache: MarketCache,
     state_mgr_r2: StateManager,
+    r2_tracker: R2Tracker,
     bot: TelegramBot,
     bets_db: BetsDB,
     tennis: TennisAPIClient,
@@ -276,7 +215,7 @@ async def _kalshi_refresh_loop(
         try:
             await cache.refresh()
             if bot.enabled_r2:
-                await _process_r2(cache, state_mgr_r2, bot, bets_db, tennis.live_matches)
+                await _process_r2(cache, state_mgr_r2, r2_tracker, bot, bets_db, tennis.live_matches)
         except Exception as e:
             logger.error("Kalshi refresh error: %s", e)
         await asyncio.sleep(MarketCache.REFRESH_INTERVAL)
@@ -295,9 +234,9 @@ async def _heartbeat_loop(bot: TelegramBot, tennis: TennisAPIClient) -> None:
 
 
 async def _state_cleanup_loop(
-    state_mgr: StateManager,
     state_mgr_r2: StateManager,
     state_mgr_r3: StateManager,
+    r2_tracker: R2Tracker,
     r3_tracker: R3Tracker,
     tennis: TennisAPIClient,
     kalshi: MarketCache | None,
@@ -307,10 +246,10 @@ async def _state_cleanup_loop(
         try:
             tennis.cleanup_stale()
             active_r1 = set(tennis.live_matches.keys())
-            state_mgr.cleanup(active_r1)
             if kalshi:
                 active_r2 = {m.ticker for m in kalshi.markets}
                 state_mgr_r2.cleanup(active_r2)
+                r2_tracker.cleanup(active_r2)
             state_mgr_r3.cleanup(active_r1)
             r3_tracker.cleanup(active_r1)
             logger.debug("State cleanup: %d active matches", len(active_r1))
@@ -334,12 +273,12 @@ async def main() -> None:
     if not tennis_key:
         raise RuntimeError("TENNIS_API_KEY must be set in .env")
 
-    bot = TelegramBot(token=token, chat_ids=chat_ids)
+    bot          = TelegramBot(token=token, chat_ids=chat_ids)
     bets_db      = BetsDB("bets.db")
     bot.app.bot_data[BETS_DB_KEY] = bets_db
-    state_mgr    = StateManager()
     state_mgr_r2 = StateManager()
     state_mgr_r3 = StateManager()
+    r2_tracker   = R2Tracker()
     r3_tracker   = R3Tracker()
     tennis = TennisAPIClient(api_key=tennis_key)
 
@@ -361,15 +300,19 @@ async def main() -> None:
     tasks: list[asyncio.Task] = []
 
     if kalshi_cache:
-        tasks.append(asyncio.create_task(_kalshi_refresh_loop(kalshi_cache, state_mgr_r2, bot, bets_db, tennis)))
+        tasks.append(asyncio.create_task(
+            _kalshi_refresh_loop(kalshi_cache, state_mgr_r2, r2_tracker, bot, bets_db, tennis)
+        ))
 
     tasks.append(asyncio.create_task(_heartbeat_loop(bot, tennis)))
-    tasks.append(asyncio.create_task(_state_cleanup_loop(state_mgr, state_mgr_r2, state_mgr_r3, r3_tracker, tennis, kalshi_cache)))
+    tasks.append(asyncio.create_task(
+        _state_cleanup_loop(state_mgr_r2, state_mgr_r3, r2_tracker, r3_tracker, tennis, kalshi_cache)
+    ))
 
     async def on_update(match: MatchState) -> None:
         if kalshi_cache is None:
             return
-        await _process_update(match, kalshi_cache, state_mgr, state_mgr_r3, r3_tracker, bot, bets_db)
+        await _process_update(match, kalshi_cache, state_mgr_r3, r3_tracker, bot, bets_db)
 
     tennis.on_update(on_update)
 

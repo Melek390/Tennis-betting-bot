@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from rules import fmt_point_score
-
 
 def _c(p: float | None) -> str:
     return f"{round(p * 100)}¢" if p is not None else "—"
@@ -25,7 +23,7 @@ def _now() -> str:
 
 @dataclass
 class Signal:
-    rule: str                     # "R1", "R2", "R3"
+    rule: str                     # "R2", "R3"
     kind: str                     # "ENTRY", "EXIT", "RE-ENTRY"
     context: str                  # match / player / market identifier
     detail: str = ""              # optional second line
@@ -49,62 +47,97 @@ class Signal:
         return "\n".join(lines)
 
 
-def log_text(player: str, match: str, log: dict) -> str:
-    ep      = log.get("entry_price")
-    em      = log.get("entry_mid")
-    ets     = log.get("entry_timestamp")
-    xp      = log.get("exit_price")
-    xm      = log.get("exit_mid")
-    xts     = log.get("exit_timestamp")
-    mae     = log.get("mae", 0.0)
-    mfe     = log.get("mfe", 0.0)
-    reason  = log.get("exit_reason_str", "")
-    ticks   = log.get("tick_history", [])     # [(price, mid, point_score), ...]
-    pticks  = log.get("post_exit_ticks", [])  # [(price, mid, point_score), ...]
-    entry_ps = log.get("entry_point_score", "")
+def log_r2_text(market_title: str, log: dict) -> str:
+    entry_time      = log.get("entry_time")
+    entry_ask       = log.get("entry_ask")
+    entry_mid       = log.get("entry_mid")
+    entry_spread    = log.get("entry_spread")
+    entry_drop      = log.get("entry_drop")     # int (¢) or None
+    entry_prev_ask  = log.get("entry_prev_ask")
+    entry_serving   = log.get("entry_serving", "")
+    entry_set_score = log.get("entry_set_score", "")
+    entry_game_score = log.get("entry_game_score", "")
+    entry_break_game = log.get("entry_break_game")
+    ticks           = log.get("ticks", [])
+    exit_time       = log.get("exit_time")
+    exit_ask        = log.get("exit_ask")
+    exit_mid        = log.get("exit_mid")
+    exit_reason     = log.get("exit_reason", "")
+    post_ticks      = log.get("post_ticks", [])
 
-    def _row(label: str, price, mid, ps: str, suffix: str = "") -> str:
-        mid_str = f" (mid {_c(mid)})" if mid is not None else ""
-        ps_str  = f"  {fmt_point_score(ps)}" if ps else ""
-        return f"<code>{label:<4}</code> {_c(price)}{mid_str}{ps_str}{suffix}"
+    # Hold duration
+    hold_str = "—"
+    if entry_time and exit_time:
+        secs = (exit_time - entry_time).total_seconds()
+        hold_str = f"{int(secs // 60)}m {int(secs % 60)}s"
+
+    # P&L
+    pnl_val = round((exit_mid - entry_mid) * 100) if exit_mid is not None and entry_mid is not None else None
+    pnl_str = (f"+{pnl_val}¢" if pnl_val and pnl_val > 0 else f"{pnl_val}¢") if pnl_val is not None else "—"
 
     lines = [
-        f"<b>R1 LOG</b> — {match}",
-        f"<i>{player}</i>",
+        "<b>R2 LOG — Spike Fade</b>",
+        f"{market_title} · ENTRY",
         "",
-        "<b>Price path:</b>",
-        _row("t0", ep, em, entry_ps),
+        f"Entry {_fmt_ts(entry_time)} UTC",
     ]
-    for i, (p, m, ps) in enumerate(ticks, 1):
-        lines.append(_row(f"t{i}", p, m, ps))
-    xps = log.get("exit_point_score", "")
-    lines.append(_row("exit", xp, xm, xps, "  ← exit"))
-    for i, (p, m, ps) in enumerate(pticks, 1):
-        lines.append(_row(f"t+{i}", p, m, ps))
 
-    mae_str = f"{round(mae * 100)}¢" if mae < 0 else f"+{round(mae * 100)}¢"
-    mfe_str = f"+{round(mfe * 100)}¢"
-    lines += [
-        "",
-        f"Entry: {_c(ep)} @ {_fmt_ts(ets)}  |  Exit: {_c(xp)} @ {_fmt_ts(xts)}",
-        f"P&L: <b>{_pnl(xp, ep)}</b>  |  MAE: {mae_str}  |  MFE: {mfe_str}",
-    ]
-    if pticks:
-        post_moves = [(p - ep) * 100 for p, _, _ in pticks if ep is not None]
-        best  = round(max(post_moves)) if post_moves else None
-        worst = round(min(post_moves)) if post_moves else None
-        if best is not None:
-            b_str = f"+{best}¢" if best >= 0 else f"{best}¢"
-            w_str = f"+{worst}¢" if worst >= 0 else f"{worst}¢"
-            lines.append(f"Post-exit: best {b_str}, worst {w_str}")
-    if reason:
-        lines.append(f"<i>Reason: {reason}</i>")
+    # Price line
+    drop_str   = f"{entry_drop}¢" if entry_drop is not None else "—"
+    spread_str = f"{round(entry_spread * 100)}¢" if entry_spread is not None else "—"
+    lines.append(
+        f"Ask {_c(entry_ask)} · Mid {_c(entry_mid)} · Spread {spread_str} · Drop {drop_str} · Pre-drop {_c(entry_prev_ask)}"
+    )
+
+    # Tennis state at entry
+    tennis_parts = []
+    if entry_serving:
+        tennis_parts.append(f"Serving: {entry_serving}")
+    if entry_set_score:
+        tennis_parts.append(f"Set {entry_set_score}")
+    if entry_game_score:
+        tennis_parts.append(f"Game {entry_game_score}")
+    if entry_break_game is not None:
+        tennis_parts.append(f"Break at game {entry_break_game}")
+    if tennis_parts:
+        lines.append(" · ".join(tennis_parts))
+
+    lines.append("")
+
+    # In-position ticks
+    for i, t in enumerate(ticks, 1):
+        parts = [f"T{i} Mid {_c(t['mid'])}"]
+        if t.get("serving"):
+            parts.append(f"Serving: {t['serving']}")
+        if t.get("set_score"):
+            parts.append(f"Set {t['set_score']}")
+        if t.get("game_score"):
+            parts.append(f"Game {t['game_score']}")
+        parts.append(f"2nd break: {'Yes' if t.get('second_break') else 'No'}")
+        lines.append(" · ".join(parts))
+
+    lines.append("")
+    lines.append(f"Exit {_fmt_ts(exit_time)} UTC · Hold {hold_str}")
+    lines.append(f"Ask {_c(exit_ask)} · Mid {_c(exit_mid)} · Reason: {exit_reason or '—'}")
+
+    if post_ticks:
+        lines.append("")
+        for i, t in enumerate(post_ticks, 1):
+            parts = [f"T+{i} Mid {_c(t['mid'])}"]
+            if t.get("set_score"):
+                parts.append(f"Set {t['set_score']}")
+            if t.get("game_score"):
+                parts.append(f"Game {t['game_score']}")
+            lines.append(" · ".join(parts))
+
+    lines.append("")
+    lines.append(f"P&L <b>{pnl_str}</b>")
+
     return "\n".join(lines)
 
 
 def heartbeat_text(
     match_count: int,
-    enabled: bool,
     enabled_r2: bool = True,
     enabled_r3: bool = True,
 ) -> str:
@@ -115,7 +148,6 @@ def heartbeat_text(
     return (
         f"<b>Heartbeat</b>\n\n"
         f"<b>Tennis API:</b> {matches_line}\n"
-        f"<b>Rule 1:</b> {'ON' if enabled else 'OFF'}\n"
         f"<b>Rule 2:</b> {'ON' if enabled_r2 else 'OFF'}\n"
         f"<b>Rule 3:</b> {'ON' if enabled_r3 else 'OFF'}\n"
         f"<i>{_now()}</i>"
