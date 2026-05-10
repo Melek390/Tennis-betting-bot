@@ -32,6 +32,7 @@ class _R2State:
     exit_ask: float | None = None
     exit_mid: float | None = None
     exit_reason: str = ""
+    match_state_exit: str = ""
     # Post-exit ticks for LOG
     post_ticks: list = field(default_factory=list)
     last_post_tick_at: datetime | None = None
@@ -54,15 +55,15 @@ class R2Tracker:
         match=None,
     ) -> None:
         d = _R2State()
-        d.entry_time    = datetime.now(timezone.utc)
-        d.entry_ask     = ask
-        d.entry_mid     = mid
-        d.entry_spread  = spread
-        d.entry_drop    = round((prev_ask - ask) * 100) if prev_ask is not None else None
+        d.entry_time     = datetime.now(timezone.utc)
+        d.entry_ask      = ask
+        d.entry_mid      = mid
+        d.entry_spread   = spread
+        d.entry_drop     = round((prev_ask - ask) * 100) if prev_ask is not None else None
         d.entry_prev_ask = prev_ask
         if match is not None:
-            d.entry_serving   = match.player_name(match.serving)
-            d.entry_set_score = f"{match.sets_first}-{match.sets_second}"
+            d.entry_serving    = match.player_name(match.serving)
+            d.entry_set_score  = f"{match.sets_first}-{match.sets_second}"
             d.entry_game_score = f"{match.games_first}-{match.games_second}"
             d.entry_break_game = match.games_first + match.games_second
         self._data[ticker] = d
@@ -79,19 +80,27 @@ class R2Tracker:
             return
         t = _R2Tick(mid=mid, second_break=second_break)
         if match is not None:
-            t.serving   = match.player_name(match.serving)
+            t.serving    = match.player_name(match.serving)
             t.set_score  = f"{match.sets_first}-{match.sets_second}"
             t.game_score = f"{match.games_first}-{match.games_second}"
         d.ticks.append(t)
 
-    def set_exit(self, ticker: str, ask: float, mid: float, reason: str) -> None:
+    def set_exit(
+        self,
+        ticker: str,
+        ask: float,
+        mid: float,
+        reason: str,
+        match_state_exit: str = "",
+    ) -> None:
         d = self._data.get(ticker)
         if d is None:
             return
-        d.exit_time   = datetime.now(timezone.utc)
-        d.exit_ask    = ask
-        d.exit_mid    = mid
-        d.exit_reason = reason
+        d.exit_time       = datetime.now(timezone.utc)
+        d.exit_ask        = ask
+        d.exit_mid        = mid
+        d.exit_reason     = reason
+        d.match_state_exit = match_state_exit
 
     def tick_post_exit(self, ticker: str, mid: float, match=None) -> bool:
         """Collect one post-exit tick (rate-limited). Returns True when 2 ticks collected."""
@@ -132,16 +141,16 @@ class R2Tracker:
         if d is None:
             return None
         return {
-            "entry_time":       d.entry_time,
-            "entry_ask":        d.entry_ask,
-            "entry_mid":        d.entry_mid,
-            "entry_spread":     d.entry_spread,
-            "entry_drop":       d.entry_drop,
-            "entry_prev_ask":   d.entry_prev_ask,
-            "entry_serving":    d.entry_serving,
-            "entry_set_score":  d.entry_set_score,
-            "entry_game_score": d.entry_game_score,
-            "entry_break_game": d.entry_break_game,
+            "entry_time":        d.entry_time,
+            "entry_ask":         d.entry_ask,
+            "entry_mid":         d.entry_mid,
+            "entry_spread":      d.entry_spread,
+            "entry_drop":        d.entry_drop,
+            "entry_prev_ask":    d.entry_prev_ask,
+            "entry_serving":     d.entry_serving,
+            "entry_set_score":   d.entry_set_score,
+            "entry_game_score":  d.entry_game_score,
+            "entry_break_game":  d.entry_break_game,
             "ticks": [
                 {
                     "mid":          t.mid,
@@ -152,10 +161,11 @@ class R2Tracker:
                 }
                 for t in d.ticks
             ],
-            "exit_time":   d.exit_time,
-            "exit_ask":    d.exit_ask,
-            "exit_mid":    d.exit_mid,
-            "exit_reason": d.exit_reason,
+            "exit_time":        d.exit_time,
+            "exit_ask":         d.exit_ask,
+            "exit_mid":         d.exit_mid,
+            "exit_reason":      d.exit_reason,
+            "match_state_exit": d.match_state_exit,
             "post_ticks": [
                 {
                     "mid":       t.mid,

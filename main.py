@@ -169,9 +169,8 @@ async def _process_r2(
             ))
 
         elif signal == "exit":
-            r2_tracker.set_exit(market.ticker, price, mid, exit_reason or "")
-            stats_r2 = state_mgr.get_position_stats(market.ticker, "yes")
-            ep_r2    = ctx.get("entry_mid") or ctx.get("entry_price")
+            r2_tracker.set_exit(market.ticker, price, mid, exit_reason or "", r2_match_state or "")
+            ep_r2 = ctx.get("entry_mid") or ctx.get("entry_price")
             await bot.send_signal(Signal(
                 "R2", "EXIT",
                 market.title,
@@ -179,10 +178,6 @@ async def _process_r2(
                 exit_price=mid,
                 reason=exit_reason or "",
             ))
-            bets_db.log_exit("r2", market.title, market.title,
-                             ep_r2 or mid, mid, exit_reason or "",
-                             match_state_entry=stats_r2.get("entry_match_state"),
-                             match_state_exit=r2_match_state)
 
         elif was_active:
             # Still in position — record an in-position tick for the LOG
@@ -190,13 +185,18 @@ async def _process_r2(
             r2_tracker.tick(market.ticker, mid, match, second_break)
 
         elif had_pending_log:
-            # Post-exit — collect ticks for LOG, send when 2 collected
+            # Post-exit — collect ticks for LOG, send + DB write when 2 collected
             log_ready = r2_tracker.tick_post_exit(market.ticker, mid, match)
             if log_ready:
                 log_data = r2_tracker.get_log_data(market.ticker)
                 r2_tracker.mark_log_sent(market.ticker)
                 if log_data:
                     await bot.send_log_r2(market.title, log_data)
+                    stats_r2 = state_mgr.get_position_stats(market.ticker, "yes")
+                    bets_db.log_exit_r2(
+                        market.title, log_data,
+                        match_state_entry=stats_r2.get("entry_match_state"),
+                    )
 
 
 # ------------------------------------------------------------------
