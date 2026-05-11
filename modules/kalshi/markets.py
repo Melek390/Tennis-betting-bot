@@ -95,9 +95,9 @@ class MarketCache:
             # unsettled April 22 Berrettini/Collignon market when the live match is
             # Berrettini vs Navone, which may not be covered at all).
             if opp_abbr and opp_abbr not in market.ticker.upper():
-                logger.debug(
-                    "Kalshi skip: '%s' ticker=%s — opponent '%s' (%s) not in ticker",
-                    player, market.ticker, opponent, opp_abbr,
+                logger.info(
+                    "Kalshi cross-check FAIL: player='%s' title='%s' ticker=%s opponent='%s' abbr='%s'",
+                    player, market.title, market.ticker, opponent, opp_abbr,
                 )
                 continue
             prev  = self._prev_yes_ask.get(market.ticker)
@@ -108,7 +108,7 @@ class MarketCache:
             )
             return PriceInfo(price=market.yes_ask, prev_price=prev, spread=spread)
 
-        logger.debug("No Kalshi market found for player: %s (opponent: %s)", player, opponent)
+        logger.info("Kalshi no market: player='%s' opponent='%s' abbr='%s'", player, opponent, opp_abbr)
         return None
 
 

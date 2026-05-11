@@ -56,6 +56,12 @@ async def _process_update(
     bot: TelegramBot,
     bets_db: BetsDB,
 ) -> None:
+    logger.info(
+        "Tennis update: %s vs %s | %s | Set %d G%d-%d",
+        match.first_player, match.second_player,
+        match.tournament, match.current_set,
+        match.games_first, match.games_second,
+    )
     info1, info2 = kalshi.get_prices(match.first_player, match.second_player)
 
     for player_side, info in (("first", info1), ("second", info2)):
