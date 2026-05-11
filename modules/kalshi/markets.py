@@ -82,7 +82,14 @@ class MarketCache:
             return None
 
         last_name = _last_name(player)
-        opp_abbr  = _last_name(opponent).upper()[:3] if opponent else ""
+        # Build a list of 3-letter abbreviations from all significant words in the
+        # opponent's name (skipping single-letter initials like "P."). This handles
+        # compound last names like "P. Llamas Ruiz" — Kalshi uses "LLA" in tickers,
+        # not "RUI" (the last word), so checking any word guards against the bug.
+        opp_abbrs = (
+            [w.upper()[:3] for w in opponent.split() if len(w) >= 3 and not w.endswith(".")]
+            if opponent else []
+        )
         # Word-boundary match: "Martineau" must appear as a whole word,
         # not as a substring of "Martin" inside "Martin Damm Jr".
         pattern = re.compile(r"\b" + re.escape(last_name) + r"\b", re.IGNORECASE)
@@ -90,14 +97,13 @@ class MarketCache:
         for market in self._markets:
             if not pattern.search(market.title):
                 continue
-            # Cross-check: opponent's 3-letter abbreviation must appear in the ticker.
-            # This prevents matching a stale market from a different match (e.g. an
-            # unsettled April 22 Berrettini/Collignon market when the live match is
-            # Berrettini vs Navone, which may not be covered at all).
-            if opp_abbr and opp_abbr not in market.ticker.upper():
+            # Cross-check: at least one of the opponent's name abbreviations must
+            # appear in the ticker. This prevents matching a stale market from a
+            # different match while still handling compound surnames correctly.
+            if opp_abbrs and not any(a in market.ticker.upper() for a in opp_abbrs):
                 logger.info(
-                    "Kalshi cross-check FAIL: player='%s' title='%s' ticker=%s opponent='%s' abbr='%s'",
-                    player, market.title, market.ticker, opponent, opp_abbr,
+                    "Kalshi cross-check FAIL: player='%s' title='%s' ticker=%s opponent='%s' abbrs=%s",
+                    player, market.title, market.ticker, opponent, opp_abbrs,
                 )
                 continue
             prev  = self._prev_yes_ask.get(market.ticker)
@@ -108,7 +114,7 @@ class MarketCache:
             )
             return PriceInfo(price=market.yes_ask, prev_price=prev, spread=spread)
 
-        logger.info("Kalshi no market: player='%s' opponent='%s' abbr='%s'", player, opponent, opp_abbr)
+        logger.info("Kalshi no market: player='%s' opponent='%s' abbrs=%s", player, opponent, opp_abbrs)
         return None
 
 

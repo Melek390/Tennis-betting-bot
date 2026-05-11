@@ -140,7 +140,9 @@ async def _process_r2(
         mid    = round(price - spread / 2, 4)
         match  = _match_for_market(market.title, live_matches)
 
-        entry_met    = check_entry_r2(price, prev)
+        # Only enter if there is a confirmed live Tennis match — prevents firing
+        # on stale Kalshi markets whose match has already finished.
+        entry_met    = check_entry_r2(price, prev) and match is not None
         ctx          = state_mgr.get_exit_context(market.ticker, "yes")
         entry_ts     = state_mgr.get_entry_timestamp(market.ticker, "yes")
         elapsed      = (now - entry_ts).total_seconds() if entry_ts else 0
