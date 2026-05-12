@@ -31,12 +31,9 @@ def compact_score(match: MatchState) -> str:
 # Rule 3 — Back Favourite after Set Loss
 # ------------------------------------------------------------------
 
-_R3_PRICE_MIN      = 0.65   # player must HAVE BEEN a strong favourite (prev_price)
 _R3_PRICE_FLOOR    = 0.35   # player must still have a meaningful chance
+_R3_PRICE_CAP      = 0.75   # player must still be the favourite (above 50¢ with headroom)
 _R3_MAX_SET2_GAMES = 4      # enter within first 4 games of set 2
-
-# Set 1 must have been a close loss (not a bagel or 1-6/2-6)
-_SET1_CLOSE_LOSSES = frozenset({"4-6", "5-7", "6-7"})
 
 
 def check_entry_r3(
@@ -51,11 +48,11 @@ def check_entry_r3(
     """
     if prev_price is None:
         return None
-    if prev_price < _R3_PRICE_MIN:   # was a strong favourite before set loss
-        return None
     if price >= prev_price:           # price must have actually dropped
         return None
     if price < _R3_PRICE_FLOOR:       # still a live contender
+        return None
+    if price > _R3_PRICE_CAP:         # not already near certainty
         return None
     if match.current_set != 2:
         return None
@@ -69,8 +66,6 @@ def check_entry_r3(
     loser_g  = s1.first  if player == "first"  else s1.second
     winner_g = s1.second if player == "first"  else s1.first
     score_str = f"{loser_g}-{winner_g}"
-    if score_str not in _SET1_CLOSE_LOSSES:
-        return None
 
     return score_str  # truthy + carries set-1 score for alert text
 
