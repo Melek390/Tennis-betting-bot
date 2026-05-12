@@ -229,6 +229,10 @@ class StateManager:
             return last[0], last[1]
         return e.entry_price, e.entry_mid
 
+    def active_positions(self) -> list[tuple[str, str]]:
+        """Return all (match_id, player) keys currently IN_POSITION."""
+        return [k for k, e in self._data.items() if e.state == RuleState.IN_POSITION]
+
     def cleanup(self, active_match_ids: set[str]) -> None:
         dead = [k for k in self._data if k[0] not in active_match_ids]
         for k in dead:

@@ -25,6 +25,8 @@ class _R3State:
     # Set at entry
     entry_price: float | None = None
     entry_time: datetime | None = None
+    player_name: str = ""
+    match_name: str = ""
 
 
 _Key = tuple[str, str]  # (match_id, player_side)
@@ -86,10 +88,13 @@ class R3Tracker:
     # Called by main.py when a position is entered / exited
     # ------------------------------------------------------------------
 
-    def set_entry(self, match_id: str, player: str, price: float) -> None:
+    def set_entry(self, match_id: str, player: str, price: float,
+                  player_name: str = "", match_name: str = "") -> None:
         d = self._get(match_id, player)
-        d.entry_price = price
-        d.entry_time  = datetime.now(timezone.utc)
+        d.entry_price  = price
+        d.entry_time   = datetime.now(timezone.utc)
+        d.player_name  = player_name
+        d.match_name   = match_name
 
     def reset_entry(self, match_id: str, player: str) -> None:
         d = self._get(match_id, player)

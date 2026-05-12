@@ -94,7 +94,9 @@ async def _process_update(
 
             player_name_r3 = match.player_name(player_side)
             if signal_r3 in ("entry", "reentry"):
-                r3_tracker.set_entry(match.match_id, player_side, price)
+                r3_tracker.set_entry(match.match_id, player_side, price,
+                                     player_name=player_name_r3,
+                                     match_name=match.match_name)
                 prev_p = info.prev_price or price
                 drop   = round((prev_p - price) * 100)
                 await bot.send_signal(Signal(
@@ -208,13 +210,60 @@ async def _process_r2(
 
 
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# R3 orphan exit — fires when a match ends in straight sets so the
+# Tennis WebSocket never delivers the final set-complete update.
+# ------------------------------------------------------------------
+
+async def _check_r3_orphans(
+    state_mgr_r3: StateManager,
+    r3_tracker: R3Tracker,
+    bot: TelegramBot,
+    bets_db: BetsDB,
+    live_matches: dict,
+) -> None:
+    for match_id, player_side in state_mgr_r3.active_positions():
+        if match_id in live_matches:
+            continue
+        d = r3_tracker._data.get((match_id, player_side))
+        if d is None:
+            continue
+        ctx   = state_mgr_r3.get_exit_context(match_id, player_side)
+        stats = state_mgr_r3.get_position_stats(match_id, player_side)
+        ep    = ctx.get("entry_mid") or ctx.get("entry_price")
+        reason = "Match ended"
+        signal = state_mgr_r3.process(
+            match_id, player_side,
+            entry_met=False, exit_met=True,
+            price=ep, exit_reason_str=reason,
+        )
+        if signal == "exit":
+            r3_tracker.reset_entry(match_id, player_side)
+            logger.info("R3 orphan exit: %s %s — %s", d.player_name, d.match_name, reason)
+            await bot.send_signal(Signal(
+                "R3", "EXIT",
+                f"{d.player_name} — {d.match_name}",
+                entry_price=ep,
+                exit_price=None,
+                reason=reason,
+            ))
+            bets_db.log_exit(
+                "r3", d.player_name, d.match_name,
+                ep or 0, None, reason,
+                match_state_entry=stats.get("entry_match_state"),
+            )
+
+
+# ------------------------------------------------------------------
 # Background loops
 # ------------------------------------------------------------------
 
 async def _kalshi_refresh_loop(
     cache: MarketCache,
     state_mgr_r2: StateManager,
+    state_mgr_r3: StateManager,
     r2_tracker: R2Tracker,
+    r3_tracker: R3Tracker,
     bot: TelegramBot,
     bets_db: BetsDB,
     tennis: TennisAPIClient,
@@ -222,8 +271,11 @@ async def _kalshi_refresh_loop(
     while True:
         try:
             await cache.refresh()
+            live = tennis.live_matches
             if bot.enabled_r2:
-                await _process_r2(cache, state_mgr_r2, r2_tracker, bot, bets_db, tennis.live_matches)
+                await _process_r2(cache, state_mgr_r2, r2_tracker, bot, bets_db, live)
+            if bot.enabled_r3:
+                await _check_r3_orphans(state_mgr_r3, r3_tracker, bot, bets_db, live)
         except Exception as e:
             logger.error("Kalshi refresh error: %s", e)
         await asyncio.sleep(MarketCache.REFRESH_INTERVAL)
@@ -309,7 +361,8 @@ async def main() -> None:
 
     if kalshi_cache:
         tasks.append(asyncio.create_task(
-            _kalshi_refresh_loop(kalshi_cache, state_mgr_r2, r2_tracker, bot, bets_db, tennis)
+            _kalshi_refresh_loop(kalshi_cache, state_mgr_r2, state_mgr_r3,
+                                 r2_tracker, r3_tracker, bot, bets_db, tennis)
         ))
 
     tasks.append(asyncio.create_task(_heartbeat_loop(bot, tennis)))
