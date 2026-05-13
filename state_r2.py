@@ -24,7 +24,8 @@ class _R2State:
     entry_serving: str = ""
     entry_set_score: str = ""
     entry_game_score: str = ""
-    entry_break_game: int | None = None  # total games in set 2 when break fired
+    entry_break_game: int | None = None  # total games in set when break fired
+    entry_sets_total: int = 0            # sets_first + sets_second at entry (stale-tick guard)
     # In-position ticks (one per Kalshi refresh while in position)
     ticks: list = field(default_factory=list)
     # Exit snapshot
@@ -66,6 +67,7 @@ class R2Tracker:
             d.entry_set_score  = f"{match.sets_first}-{match.sets_second}"
             d.entry_game_score = f"{match.games_first}-{match.games_second}"
             d.entry_break_game = match.games_first + match.games_second
+            d.entry_sets_total = match.sets_first + match.sets_second
         self._data[ticker] = d
 
     def tick(
@@ -80,9 +82,13 @@ class R2Tracker:
             return
         t = _R2Tick(mid=mid, second_break=second_break)
         if match is not None:
-            t.serving    = match.player_name(match.serving)
-            t.set_score  = f"{match.sets_first}-{match.sets_second}"
-            t.game_score = f"{match.games_first}-{match.games_second}"
+            # Skip stale Tennis API messages delivered late around set transitions —
+            # if the sets total went backwards vs entry, the update is from the
+            # previous set and would show e.g. "5-4" instead of "0-0".
+            if match.sets_first + match.sets_second >= d.entry_sets_total:
+                t.serving    = match.player_name(match.serving)
+                t.set_score  = f"{match.sets_first}-{match.sets_second}"
+                t.game_score = f"{match.games_first}-{match.games_second}"
         d.ticks.append(t)
 
     def set_exit(

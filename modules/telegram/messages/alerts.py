@@ -98,7 +98,7 @@ def log_r2_text(market_title: str, log: dict) -> str:
     if entry_game_score:
         tennis_parts.append(f"Game {entry_game_score}")
     if entry_break_game is not None:
-        tennis_parts.append(f"Break at game {entry_break_game}")
+        tennis_parts.append(f"Spike at set game #{entry_break_game + 1}")
     if tennis_parts:
         lines.append(" · ".join(tennis_parts))
 
