@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 import aiohttp
 
 from .models import MatchState
-from .parser import parse_message
+from .parser import parse_message, parse_finished
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +93,15 @@ class TennisAPIClient:
         except json.JSONDecodeError:
             logger.warning("Non-JSON WebSocket message: %.120s", raw)
             return
+
+        # Remove matches that the API has marked as finished (event_live = "0").
+        # These messages are NOT passed to callbacks — they only clean up state.
+        finished = parse_finished(data)
+        for match_id in finished:
+            if match_id in self._matches:
+                logger.info("Match finished — removing from live_matches: %s", match_id)
+                self._matches.pop(match_id, None)
+                self._last_seen.pop(match_id, None)
 
         states = parse_message(data)
         for state in states:
