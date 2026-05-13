@@ -8,6 +8,7 @@ class _R2Tick:
     serving: str = ""
     set_score: str = ""
     game_score: str = ""
+    point_score: str = ""      # e.g. "30–40 [BP]"
     second_break: bool = False
 
 
@@ -86,9 +87,14 @@ class R2Tracker:
             # if the sets total went backwards vs entry, the update is from the
             # previous set and would show e.g. "5-4" instead of "0-0".
             if match.sets_first + match.sets_second >= d.entry_sets_total:
-                t.serving    = match.player_name(match.serving)
-                t.set_score  = f"{match.sets_first}-{match.sets_second}"
-                t.game_score = f"{match.games_first}-{match.games_second}"
+                from rules import fmt_point_score
+                t.serving     = match.player_name(match.serving)
+                t.set_score   = f"{match.sets_first}-{match.sets_second}"
+                t.game_score  = f"{match.games_first}-{match.games_second}"
+                t.point_score = fmt_point_score(
+                    match.point_score, match.serving,
+                    match.match_point_first, match.match_point_second,
+                )
         d.ticks.append(t)
 
     def set_exit(
@@ -121,8 +127,13 @@ class R2Tracker:
                 return False
         t = _R2Tick(mid=mid)
         if match is not None:
-            t.set_score  = f"{match.sets_first}-{match.sets_second}"
-            t.game_score = f"{match.games_first}-{match.games_second}"
+            from rules import fmt_point_score
+            t.set_score   = f"{match.sets_first}-{match.sets_second}"
+            t.game_score  = f"{match.games_first}-{match.games_second}"
+            t.point_score = fmt_point_score(
+                match.point_score, match.serving,
+                match.match_point_first, match.match_point_second,
+            )
         d.post_ticks.append(t)
         d.last_post_tick_at = now
         return len(d.post_ticks) >= 2
@@ -163,6 +174,7 @@ class R2Tracker:
                     "serving":      t.serving,
                     "set_score":    t.set_score,
                     "game_score":   t.game_score,
+                    "point_score":  t.point_score,
                     "second_break": t.second_break,
                 }
                 for t in d.ticks
@@ -174,9 +186,10 @@ class R2Tracker:
             "match_state_exit": d.match_state_exit,
             "post_ticks": [
                 {
-                    "mid":       t.mid,
-                    "set_score": t.set_score,
-                    "game_score": t.game_score,
+                    "mid":         t.mid,
+                    "set_score":   t.set_score,
+                    "game_score":  t.game_score,
+                    "point_score": t.point_score,
                 }
                 for t in d.post_ticks
             ],

@@ -108,12 +108,14 @@ def log_r2_text(market_title: str, log: dict) -> str:
     for i, t in enumerate(ticks, 1):
         parts = [f"T{i} Mid {_c(t['mid'])}"]
         if t.get("serving"):
-            parts.append(f"Serving: {t['serving']}")
+            parts.append(f"Srv: {t['serving']}")
         if t.get("set_score"):
             parts.append(f"Set {t['set_score']}")
         if t.get("game_score"):
-            parts.append(f"Game {t['game_score']}")
-        parts.append(f"2nd break: {'Yes' if t.get('second_break') else 'No'}")
+            parts.append(f"G {t['game_score']}")
+        if t.get("point_score"):
+            parts.append(t["point_score"])
+        parts.append(f"2B: {'Y' if t.get('second_break') else 'N'}")
         lines.append(" · ".join(parts))
 
     lines.append("")
@@ -127,7 +129,9 @@ def log_r2_text(market_title: str, log: dict) -> str:
             if t.get("set_score"):
                 parts.append(f"Set {t['set_score']}")
             if t.get("game_score"):
-                parts.append(f"Game {t['game_score']}")
+                parts.append(f"G {t['game_score']}")
+            if t.get("point_score"):
+                parts.append(t["point_score"])
             lines.append(" · ".join(parts))
 
     lines.append("")

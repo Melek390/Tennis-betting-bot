@@ -1,29 +1,68 @@
 from modules.tennis_api.models import MatchState
 
-# Break-point scores when first player serves (second is returner with 40)
-_BP_SECOND_RETURNS = frozenset({"0 - 40", "15 - 40", "30 - 40"})
-# Break-point scores when second player serves (first is returner with 40)
-_BP_FIRST_RETURNS  = frozenset({"40 - 0", "40 - 15", "40 - 30"})
-
-_BP_RAW = frozenset({"0 - 40", "15 - 40", "30 - 40", "40 - 0", "40 - 15", "40 - 30"})
+# Tennis API sends "A" for advantage (not "AD")
+_POINT_VAL = {"0": 0, "15": 1, "30": 2, "40": 3, "A": 4}
 
 
-def fmt_point_score(ps: str) -> str:
-    """Format raw point score: '30 - 40' → '30–40 BP', '0 - 0' → '0–0'."""
-    formatted = ps.replace(" - ", "–")
-    if "AD" in ps:
-        return f"{formatted} AD"
-    if ps in _BP_RAW:
-        return f"{formatted} BP"
-    return formatted
+def fmt_point_score(
+    ps: str,
+    serving: str = "",
+    mp_first: bool = False,
+    mp_second: bool = False,
+) -> str:
+    """
+    Format raw Tennis API point score with serving-aware annotations.
+
+    ps:      "30 - 40", "40 - A", "A - 40", "0 - 0" …
+    serving: "first" or "second" (who is currently serving)
+    Returns: "30–40 [BP]", "40–Ad [MP]", "Ad–40", "Deuce", "0–0" …
+    """
+    if not ps:
+        return ""
+
+    parts = ps.strip().split(" - ")
+    if len(parts) != 2:
+        return ps.replace(" - ", "–")
+
+    p1_raw, p2_raw = parts[0].strip(), parts[1].strip()
+
+    # Deuce
+    if p1_raw == "40" and p2_raw == "40":
+        return "Deuce"
+
+    # Compact display — "A" → "Ad"
+    p1_disp = "Ad" if p1_raw == "A" else p1_raw
+    p2_disp = "Ad" if p2_raw == "A" else p2_raw
+    score = f"{p1_disp}–{p2_disp}"
+
+    # Determine tags
+    tag = ""
+
+    # Match Point takes priority
+    server_has_mp   = (serving == "first" and mp_first) or (serving == "second" and mp_second)
+    returner_has_mp = (serving == "first" and mp_second) or (serving == "second" and mp_first)
+
+    if server_has_mp or returner_has_mp:
+        tag = " [MP]"
+    elif serving:
+        # Break Point: returner is one point from winning the game
+        sv_raw  = p1_raw if serving == "first" else p2_raw
+        ret_raw = p2_raw if serving == "first" else p1_raw
+        sv  = _POINT_VAL.get(sv_raw,  -1)
+        ret = _POINT_VAL.get(ret_raw, -1)
+        # BP when: returner at 40 and server below 40, OR returner at Ad
+        if (ret == 3 and sv < 3) or ret == 4:
+            tag = " [BP]"
+
+    return score + tag
 
 
 def compact_score(match: MatchState) -> str:
-    """Returns 'S0–1 | G2–5 | 15–40 BP' style line for alerts."""
+    """Returns 'S0–1 | G2–5 | 30–40 [BP]' style line for alerts."""
     return (
         f"S{match.sets_first}–{match.sets_second} | "
         f"G{match.games_first}–{match.games_second} | "
-        f"{fmt_point_score(match.point_score)}"
+        f"{fmt_point_score(match.point_score, match.serving, match.match_point_first, match.match_point_second)}"
     )
 
 
