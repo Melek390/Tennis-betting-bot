@@ -9,22 +9,31 @@ def fmt_point_score(
     serving: str = "",
     mp_first: bool = False,
     mp_second: bool = False,
+    is_tiebreak: bool = False,
 ) -> str:
     """
     Format raw Tennis API point score with serving-aware annotations.
 
-    ps:      "30 - 40", "40 - A", "A - 40", "0 - 0" …
+    ps:      "30 - 40", "40 - A", "A - 40", "0 - 0", "5 - 3" (tiebreak) …
     serving: "first" or "second" (who is currently serving)
-    Returns: "30–40 [BP]", "40–Ad [MP]", "Ad–40", "Deuce", "0–0" …
+    Returns: "30–40 [BP]", "40–Ad [MP]", "Ad–40", "Deuce", "TB 5–3", "TB 6–7 [MP]" …
     """
     if not ps:
         return ""
 
     parts = ps.strip().split(" - ")
     if len(parts) != 2:
-        return ps.replace(" - ", "–")
+        prefix = "TB " if is_tiebreak else ""
+        return prefix + ps.replace(" - ", "–")
 
     p1_raw, p2_raw = parts[0].strip(), parts[1].strip()
+
+    if is_tiebreak:
+        score = f"TB {p1_raw}–{p2_raw}"
+        server_has_mp   = (serving == "first" and mp_first) or (serving == "second" and mp_second)
+        returner_has_mp = (serving == "first" and mp_second) or (serving == "second" and mp_first)
+        tag = " [MP]" if (server_has_mp or returner_has_mp) else ""
+        return score + tag
 
     # Deuce
     if p1_raw == "40" and p2_raw == "40":
@@ -62,7 +71,7 @@ def compact_score(match: MatchState) -> str:
     return (
         f"S{match.sets_first}–{match.sets_second} | "
         f"G{match.games_first}–{match.games_second} | "
-        f"{fmt_point_score(match.point_score, match.serving, match.match_point_first, match.match_point_second)}"
+        f"{fmt_point_score(match.point_score, match.serving, match.match_point_first, match.match_point_second, is_tiebreak=match.is_tiebreak)}"
     )
 
 

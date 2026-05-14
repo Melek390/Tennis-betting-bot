@@ -95,6 +95,7 @@ class R2Tracker:
                 t.point_score = fmt_point_score(
                     match.point_score, match.serving,
                     match.match_point_first, match.match_point_second,
+                    is_tiebreak=match.is_tiebreak,
                 )
 
         # Only record one tick per point played — skip if Tennis state unchanged
@@ -140,6 +141,7 @@ class R2Tracker:
             t.point_score = fmt_point_score(
                 match.point_score, match.serving,
                 match.match_point_first, match.match_point_second,
+                is_tiebreak=match.is_tiebreak,
             )
         d.post_ticks.append(t)
         d.last_post_tick_at = now

@@ -111,10 +111,12 @@ def log_r2_text(market_title: str, log: dict) -> str:
             parts.append(f"Srv: {t['serving']}")
         if t.get("set_score"):
             parts.append(f"Set {t['set_score']}")
-        if t.get("game_score"):
+        ps = t.get("point_score", "")
+        is_tb = ps.startswith("TB ")
+        if t.get("game_score") and not is_tb:
             parts.append(f"G {t['game_score']}")
-        if t.get("point_score"):
-            parts.append(t["point_score"])
+        if ps:
+            parts.append(ps)
         parts.append(f"2B: {'Y' if t.get('second_break') else 'N'}")
         lines.append(" · ".join(parts))
 
@@ -128,10 +130,11 @@ def log_r2_text(market_title: str, log: dict) -> str:
             parts = [f"T+{i} Mid {_c(t['mid'])}"]
             if t.get("set_score"):
                 parts.append(f"Set {t['set_score']}")
-            if t.get("game_score"):
+            ps = t.get("point_score", "")
+            if t.get("game_score") and not ps.startswith("TB "):
                 parts.append(f"G {t['game_score']}")
-            if t.get("point_score"):
-                parts.append(t["point_score"])
+            if ps:
+                parts.append(ps)
             lines.append(" · ".join(parts))
 
     lines.append("")
