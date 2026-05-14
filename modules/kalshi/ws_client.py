@@ -153,9 +153,8 @@ class KalshiWSCache:
                         no_ask  = na if na is not None else 0.0,
                     )
 
-                    now_t    = asyncio.get_event_loop().time()
-                    in_snap  = now_t < snapshot_deadline
-                    prev_ya  = self._markets.get(ticker, KalshiMarket("","","",0.0)).yes_ask or None
+                    now_t   = asyncio.get_event_loop().time()
+                    in_snap = now_t < snapshot_deadline
 
                     # Always update cache
                     if ticker in self._markets:
