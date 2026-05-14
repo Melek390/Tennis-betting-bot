@@ -145,12 +145,15 @@ class KalshiWSCache:
                     except (KeyError, ValueError, TypeError):
                         continue
 
-                    title  = self._title_map.get(ticker, "")
-                    market = KalshiMarket(
+                    title    = self._title_map.get(ticker, "")
+                    cached   = self._markets.get(ticker)
+                    # WS sometimes omits no_ask_dollars — fall back to last known value
+                    no_ask   = na if na is not None else (cached.no_ask if cached else 0.0)
+                    market   = KalshiMarket(
                         ticker  = ticker,
                         title   = title,
                         yes_ask = ya,
-                        no_ask  = na if na is not None else 0.0,
+                        no_ask  = no_ask,
                     )
 
                     now_t   = asyncio.get_event_loop().time()
