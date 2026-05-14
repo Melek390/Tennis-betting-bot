@@ -106,15 +106,24 @@ class TennisAPIClient:
         states = parse_message(data)
         for state in states:
             prev = self._matches.get(state.match_id)
-            if prev is not None and prev.current_set == state.current_set:
-                if state.games_first < prev.games_first or state.games_second < prev.games_second:
+            if prev is not None:
+                # Drop stale messages where the set number went backwards
+                if state.current_set < prev.current_set:
                     logger.debug(
-                        "Dropped impossible score update %s: G%d-%d → G%d-%d",
-                        state.match_id,
-                        prev.games_first, prev.games_second,
-                        state.games_first, state.games_second,
+                        "Dropped stale update %s: set %d → %d",
+                        state.match_id, prev.current_set, state.current_set,
                     )
                     continue
+                # Drop impossible game scores within the same set
+                if prev.current_set == state.current_set:
+                    if state.games_first < prev.games_first or state.games_second < prev.games_second:
+                        logger.debug(
+                            "Dropped impossible score update %s: G%d-%d → G%d-%d",
+                            state.match_id,
+                            prev.games_first, prev.games_second,
+                            state.games_first, state.games_second,
+                        )
+                        continue
             self._matches[state.match_id] = state
             self._last_seen[state.match_id] = time.monotonic()
             for cb in self._callbacks:

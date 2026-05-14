@@ -110,10 +110,13 @@ class R3Tracker:
         if d is None or d.entry_price is None or d.entry_time is None:
             return None
 
-        # 1. Set 2 ended (win or loss — trade is over either way)
-        s2 = match.set_score(2)
-        if s2 is not None:
-            tag = "won" if s2.winner() == player else "lost"
+        # 1. Set 2 ended — only trust this once current_set has moved past 2.
+        # Stale Tennis API messages (current_set=1 delayed) can put set-2 data
+        # in completed_sets while set 2 is still in progress, causing false exits.
+        if match.current_set > 2:
+            s2 = match.set_score(2)
+            winner_side = s2.winner() if s2 is not None else "none"
+            tag = "won" if winner_side == player else "lost"
             return f"Set 2 {tag}"
 
         # 2. Broken in first service game, score not recovered within 2 games
