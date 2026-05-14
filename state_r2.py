@@ -27,8 +27,9 @@ class _R2State:
     entry_game_score: str = ""
     entry_break_game: int | None = None  # total games in set when break fired
     entry_sets_total: int = 0            # sets_first + sets_second at entry (stale-tick guard)
-    # In-position ticks (one per Kalshi refresh while in position)
+    # In-position ticks (one per Tennis API point played)
     ticks: list = field(default_factory=list)
+    last_tick_state: str = ""   # "set|game|point" — dedup guard
     # Exit snapshot
     exit_time: datetime | None = None
     exit_ask: float | None = None
@@ -95,6 +96,12 @@ class R2Tracker:
                     match.point_score, match.serving,
                     match.match_point_first, match.match_point_second,
                 )
+
+        # Only record one tick per point played — skip if Tennis state unchanged
+        state_key = f"{t.set_score}|{t.game_score}|{t.point_score}"
+        if state_key == d.last_tick_state:
+            return
+        d.last_tick_state = state_key
         d.ticks.append(t)
 
     def set_exit(
