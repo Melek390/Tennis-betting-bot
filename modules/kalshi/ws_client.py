@@ -23,10 +23,11 @@ from .models import KalshiMarket, PriceInfo
 
 logger = logging.getLogger(__name__)
 
-_WS_URL        = "wss://api.elections.kalshi.com/trade-api/ws/v2"
-_TENNIS_SERIES = ["KXATPMATCH", "KXWTAMATCH"]
+_WS_URL          = "wss://api.elections.kalshi.com/trade-api/ws/v2"
+_TENNIS_SERIES   = ["KXATPMATCH", "KXWTAMATCH"]
 _RECONNECT_DELAY = 10        # seconds between reconnect attempts
 _SNAPSHOT_WINDOW = 6.0       # seconds to drain initial snapshot silently
+_RESEED_INTERVAL = 30 * 60   # 30 min — force reconnect to pick up new markets
 
 PriceMoveCallback = Callable[[KalshiMarket, "float | None"], Awaitable[None]]
 
@@ -112,10 +113,14 @@ class KalshiWSCache:
                     "params": {"channels": ["ticker"], "market_tickers": tickers},
                 }))
 
-                snapshot_deadline = asyncio.get_event_loop().time() + _SNAPSHOT_WINDOW
-                snapshot_logged   = False
+                snapshot_deadline  = asyncio.get_event_loop().time() + _SNAPSHOT_WINDOW
+                reseed_deadline    = asyncio.get_event_loop().time() + _RESEED_INTERVAL
+                snapshot_logged    = False
 
                 async for msg in ws:
+                    if asyncio.get_event_loop().time() > reseed_deadline:
+                        logger.info("Kalshi WS: scheduled reconnect to pick up new markets")
+                        break
                     if not self._running:
                         break
                     if msg.type == aiohttp.WSMsgType.ERROR:
