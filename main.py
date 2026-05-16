@@ -404,7 +404,7 @@ async def main() -> None:
                 await _process_r2_market(
                     market, prev_ya,
                     state_mgr_r2, r2_tracker, bot, bets_db,
-                    tennis.live_matches,
+                    tennis.fresh_matches(max_age_secs=300),
                 )
 
         kalshi_ws.on_price_move(_on_kalshi_move)

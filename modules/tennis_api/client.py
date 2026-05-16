@@ -40,6 +40,13 @@ class TennisAPIClient:
         """Snapshot of all currently tracked live matches keyed by match_id."""
         return dict(self._matches)
 
+    def fresh_matches(self, max_age_secs: float = 300) -> dict[str, MatchState]:
+        """Live matches that received a Tennis API update within the last max_age_secs.
+        Used by R2 to avoid entering on matches the API stopped reporting (match over)."""
+        cutoff = time.monotonic() - max_age_secs
+        return {mid: m for mid, m in self._matches.items()
+                if self._last_seen.get(mid, 0) >= cutoff}
+
     async def run(self) -> None:
         """Connect and keep alive. Reconnects automatically on disconnection."""
         self._running = True
