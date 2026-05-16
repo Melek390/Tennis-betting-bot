@@ -146,19 +146,20 @@ class KalshiWSCache:
 
                     try:
                         ya = float(d["yes_ask_dollars"])
-                        na = float(d["no_ask_dollars"]) if d.get("no_ask_dollars") else None
+                        yb = float(d["yes_bid_dollars"]) if d.get("yes_bid_dollars") else None
                     except (KeyError, ValueError, TypeError):
                         continue
 
-                    title    = self._title_map.get(ticker, "")
-                    cached   = self._markets.get(ticker)
-                    # WS sometimes omits no_ask_dollars — fall back to last known value
-                    no_ask   = na if na is not None else (cached.no_ask if cached else 0.0)
-                    market   = KalshiMarket(
+                    if yb is None:
+                        cached = self._markets.get(ticker)
+                        yb = cached.yes_bid if cached else 0.0
+
+                    title  = self._title_map.get(ticker, "")
+                    market = KalshiMarket(
                         ticker  = ticker,
                         title   = title,
                         yes_ask = ya,
-                        no_ask  = no_ask,
+                        yes_bid = yb,
                     )
 
                     now_t   = asyncio.get_event_loop().time()
@@ -199,12 +200,12 @@ class KalshiWSCache:
                 for m in data.get("markets", []):
                     try:
                         ya = float(m["yes_ask_dollars"])
-                        na = float(m["no_ask_dollars"])
+                        yb = float(m.get("yes_bid_dollars") or 0)
                         if 0.01 < ya < 0.99:
                             t     = m["ticker"]
                             title = m.get("yes_sub_title") or m.get("title") or ""
                             markets[t] = KalshiMarket(ticker=t, title=title,
-                                                      yes_ask=ya, no_ask=na)
+                                                      yes_ask=ya, yes_bid=yb)
                             self._title_map[t] = title
                     except (KeyError, ValueError, TypeError):
                         pass
@@ -229,7 +230,6 @@ class KalshiWSCache:
                 continue
             if opp_abbrs and not any(a in market.ticker.upper() for a in opp_abbrs):
                 continue
-            prev   = self._prev_ask.get(market.ticker)
-            spread = round(market.yes_ask + market.no_ask - 1.0, 4)
-            return PriceInfo(price=market.yes_ask, prev_price=prev, spread=spread)
+            prev = self._prev_ask.get(market.ticker)
+            return PriceInfo(price=market.yes_ask, prev_price=prev, spread=market.spread)
         return None

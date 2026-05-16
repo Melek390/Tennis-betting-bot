@@ -142,7 +142,7 @@ async def _process_r2_market(
     """
     now    = datetime.now(timezone.utc)
     price  = market.yes_ask
-    spread = round(market.yes_ask + market.no_ask - 1.0, 4)
+    spread = market.spread
     mid    = round(price - spread / 2, 4)
     match  = _match_for_market(market.title, live_matches)
 
@@ -225,7 +225,7 @@ async def _r2_periodic_loop(
                     continue
 
                 price  = market.yes_ask
-                spread = round(market.yes_ask + market.no_ask - 1.0, 4)
+                spread = market.spread
                 mid    = round(price - spread / 2, 4)
                 match  = _match_for_market(market.title, live)
 
