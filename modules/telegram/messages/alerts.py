@@ -147,16 +147,25 @@ def heartbeat_text(
     match_count: int,
     enabled_r2: bool = True,
     enabled_r3: bool = True,
+    kalshi_matches: list[str] | None = None,
 ) -> str:
     matches_line = (
         f"{match_count} live match{'es' if match_count != 1 else ''}"
         if match_count else "No live matches"
     )
+    kalshi_block = ""
+    if kalshi_matches is not None:
+        if kalshi_matches:
+            lines = "\n".join(f"  • {m}" for m in kalshi_matches)
+            kalshi_block = f"\n<b>Kalshi coverage ({len(kalshi_matches)}):</b>\n{lines}\n"
+        else:
+            kalshi_block = "\n<b>Kalshi coverage:</b> none\n"
     return (
         f"<b>Heartbeat</b>\n\n"
         f"<b>Tennis API:</b> {matches_line}\n"
         f"<b>Rule 2:</b> {'ON' if enabled_r2 else 'OFF'}\n"
         f"<b>Rule 3:</b> {'ON' if enabled_r3 else 'OFF'}\n"
+        f"{kalshi_block}"
         f"<i>{_now()}</i>"
     )
 
