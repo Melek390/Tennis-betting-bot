@@ -14,6 +14,8 @@ import asyncio
 import json
 import logging
 import re
+import time
+from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
 
 import aiohttp
@@ -41,6 +43,7 @@ class KalshiWSCache:
         self._prev_ask:     dict[str, float]         = {}   # ticker → prev yes_ask
         self._title_map:    dict[str, str]            = {}   # ticker → display title
         self._callbacks:    list[PriceMoveCallback]   = []
+        self._price_history: dict[str, deque]         = defaultdict(deque)  # ticker → [(mono_time, ask)]
         self._running = False
 
     # ------------------------------------------------------------------
@@ -56,6 +59,21 @@ class KalshiWSCache:
 
     def prev_yes_ask(self, ticker: str) -> float | None:
         return self._prev_ask.get(ticker)
+
+    def prev_ask_30s(self, ticker: str, window_secs: float = 30.0) -> float | None:
+        """Ask price closest to window_secs ago — replicates REST 30s polling for R2."""
+        history = self._price_history.get(ticker)
+        if not history:
+            return None
+        now    = time.monotonic()
+        target = now - window_secs
+        best_price, best_diff = None, float("inf")
+        for ts, price in history:
+            diff = abs(ts - target)
+            if diff < best_diff:
+                best_diff  = diff
+                best_price = price
+        return best_price if best_diff < 15.0 else None
 
     def get_prices(
         self, player1: str, player2: str
@@ -169,6 +187,13 @@ class KalshiWSCache:
                     if ticker in self._markets:
                         self._prev_ask[ticker] = self._markets[ticker].yes_ask
                     self._markets[ticker] = market
+
+                    # Track 30s rolling price history (even during snapshot)
+                    now_m = time.monotonic()
+                    hist  = self._price_history[ticker]
+                    hist.append((now_m, ya))
+                    while hist and now_m - hist[0][0] > 65.0:
+                        hist.popleft()
 
                     # Drain initial snapshot silently
                     if in_snap:

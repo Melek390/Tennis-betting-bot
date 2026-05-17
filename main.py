@@ -410,8 +410,10 @@ async def main() -> None:
         # Register R2 callback — fires on every Kalshi price move
         async def _on_kalshi_move(market: KalshiMarket, prev_ya: float | None) -> None:
             if bot.enabled_r2:
+                # Use 30s rolling price as prev — replicates REST 30s polling behaviour
+                prev_30s = kalshi_ws.prev_ask_30s(market.ticker, window_secs=30)
                 await _process_r2_market(
-                    market, prev_ya,
+                    market, prev_30s if prev_30s is not None else prev_ya,
                     state_mgr_r2, r2_tracker, bot, bets_db,
                     tennis.fresh_matches(max_age_secs=300),
                 )

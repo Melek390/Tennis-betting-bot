@@ -58,22 +58,26 @@ async def main():
     async def on_move(market: KalshiMarket, prev_ya: float | None) -> None:
         nonlocal moves
         price = market.yes_ask
-        if prev_ya is None:
+        # Use 30s rolling price (mirrors bot logic)
+        prev_30s = kalshi.prev_ask_30s(market.ticker, window_secs=30)
+        effective_prev = prev_30s if prev_30s is not None else prev_ya
+        if effective_prev is None:
             return
-        drop = round((prev_ya - price) * 100)
-        if drop < 3:          # ignore tiny noise
+        drop = round((effective_prev - price) * 100)
+        if drop < 3:
             return
 
         moves += 1
-        fresh  = tennis.fresh_matches(max_age_secs=300)
-        match  = _match_for_market(market.title, fresh)
-        fired  = check_entry_r2(price, prev_ya) and match is not None
+        fresh = tennis.fresh_matches(max_age_secs=300)
+        match = _match_for_market(market.title, fresh)
+        fired = check_entry_r2(price, effective_prev) and match is not None
 
-        tag = "** R2 ENTRY **" if fired else f"no entry — {_r2_why(price, prev_ya, match)}"
+        src = "30s" if prev_30s is not None else "prev"
+        tag = "** R2 ENTRY **" if fired else f"no entry — {_r2_why(price, effective_prev, match)}"
         print(
             f"[{_now()}] {market.title[:50]:<50} "
-            f"ask={round(price*100):3}c  drop={drop:+3}c  "
-            f"prev={round(prev_ya*100):3}c  tennis={'YES' if match else 'no '}  "
+            f"ask={round(price*100):3}c  drop={drop:+3}c({src})  "
+            f"prev={round(effective_prev*100):3}c  tennis={'YES' if match else 'no '}  "
             f"{tag}"
         )
 
