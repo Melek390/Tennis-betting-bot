@@ -70,10 +70,11 @@ class TelegramBot:
     # Shared senders
     # ------------------------------------------------------------------
 
-    async def send_heartbeat(self, match_count: int) -> None:
+    async def send_heartbeat(self, match_count: int, kalshi_matches: list[str] | None = None) -> None:
         await self._send(heartbeat_text(
             match_count,
             self._state.enabled_r2, self._state.enabled_r3,
+            kalshi_matches=kalshi_matches,
         ))
 
     async def send_error(self, message: str) -> None:

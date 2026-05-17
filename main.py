@@ -320,13 +320,22 @@ async def _r3_orphan_loop(
 # Background loops
 # ------------------------------------------------------------------
 
-async def _heartbeat_loop(bot: TelegramBot, tennis: TennisAPIClient) -> None:
+async def _heartbeat_loop(
+    bot: TelegramBot,
+    tennis: TennisAPIClient,
+    kalshi: "KalshiWSCache | None" = None,
+) -> None:
     await asyncio.sleep(15)
     while True:
         try:
             match_count = len(tennis.live_matches)
-            await bot.send_heartbeat(match_count)
-            logger.info("Heartbeat sent — %d live matches", match_count)
+            kalshi_matches = None
+            if kalshi:
+                names, _ = kalshi.live_tradeable(tennis.fresh_matches(max_age_secs=300))
+                kalshi_matches = names
+            await bot.send_heartbeat(match_count, kalshi_matches=kalshi_matches)
+            logger.info("Heartbeat sent — %d live matches, %d Kalshi",
+                        match_count, len(kalshi_matches) if kalshi_matches else 0)
         except Exception as e:
             logger.error("Heartbeat error: %s", e)
         await asyncio.sleep(3600)
@@ -417,7 +426,7 @@ async def main() -> None:
     tasks.append(asyncio.create_task(
         _r3_orphan_loop(state_mgr_r3, r3_tracker, bot, bets_db, tennis)
     ))
-    tasks.append(asyncio.create_task(_heartbeat_loop(bot, tennis)))
+    tasks.append(asyncio.create_task(_heartbeat_loop(bot, tennis, kalshi_ws)))
     tasks.append(asyncio.create_task(
         _state_cleanup_loop(state_mgr_r2, state_mgr_r3, r2_tracker, r3_tracker,
                             tennis, kalshi_ws)
