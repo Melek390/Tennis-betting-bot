@@ -146,7 +146,9 @@ async def _process_r2_market(
     mid    = round(price - spread / 2, 4)
     match  = _match_for_market(market.title, live_matches)
 
-    entry_met    = check_entry_r2(price, prev_ya) and match is not None
+    entry_met    = (check_entry_r2(price, prev_ya)
+                    and match is not None
+                    and not r2_tracker.is_in_cooldown(market.ticker))
     ctx          = state_mgr.get_exit_context(market.ticker, "yes")
     entry_ts     = state_mgr.get_entry_timestamp(market.ticker, "yes")
     elapsed      = (now - entry_ts).total_seconds() if entry_ts else 0

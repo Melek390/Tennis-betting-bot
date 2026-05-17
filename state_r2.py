@@ -44,9 +44,11 @@ class _R2State:
 
 class R2Tracker:
     _POST_TICK_INTERVAL = 25.0  # seconds minimum between post-exit ticks
+    _STOP_LOSS_COOLDOWN = 600.0  # 10 min — no re-entry after a stop loss on same market
 
     def __init__(self):
-        self._data: dict[str, _R2State] = {}
+        self._data:           dict[str, _R2State]  = {}
+        self._stop_loss_times: dict[str, datetime] = {}  # ticker → last stop-loss time
 
     def set_entry(
         self,
@@ -105,6 +107,13 @@ class R2Tracker:
         d.last_tick_state = state_key
         d.ticks.append(t)
 
+    def is_in_cooldown(self, ticker: str) -> bool:
+        """True if a stop-loss fired on this ticker within the last 10 minutes."""
+        t = self._stop_loss_times.get(ticker)
+        if t is None:
+            return False
+        return (datetime.now(timezone.utc) - t).total_seconds() < self._STOP_LOSS_COOLDOWN
+
     def set_exit(
         self,
         ticker: str,
@@ -116,11 +125,13 @@ class R2Tracker:
         d = self._data.get(ticker)
         if d is None:
             return
-        d.exit_time       = datetime.now(timezone.utc)
-        d.exit_ask        = ask
-        d.exit_mid        = mid
-        d.exit_reason     = reason
+        d.exit_time        = datetime.now(timezone.utc)
+        d.exit_ask         = ask
+        d.exit_mid         = mid
+        d.exit_reason      = reason
         d.match_state_exit = match_state_exit
+        if "Stop loss" in reason:
+            self._stop_loss_times[ticker] = d.exit_time
 
     def tick_post_exit(self, ticker: str, mid: float, match=None) -> bool:
         """Collect one post-exit tick (rate-limited). Returns True when 2 ticks collected."""
@@ -208,3 +219,7 @@ class R2Tracker:
         dead = [k for k in self._data if k not in active_tickers]
         for k in dead:
             del self._data[k]
+        # Expire cooldowns for markets that are no longer active
+        dead_sl = [k for k in self._stop_loss_times if k not in active_tickers]
+        for k in dead_sl:
+            del self._stop_loss_times[k]
