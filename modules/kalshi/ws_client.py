@@ -27,7 +27,7 @@ _WS_URL          = "wss://api.elections.kalshi.com/trade-api/ws/v2"
 _TENNIS_SERIES   = ["KXATPMATCH", "KXWTAMATCH"]
 _RECONNECT_DELAY = 10        # seconds between reconnect attempts
 _SNAPSHOT_WINDOW = 6.0       # seconds to drain initial snapshot silently
-_RESEED_INTERVAL = 30 * 60   # 30 min — force reconnect to pick up new markets
+_RESEED_INTERVAL = 5 * 60    # 5 min — force reconnect to pick up new markets
 
 PriceMoveCallback = Callable[[KalshiMarket, "float | None"], Awaitable[None]]
 
