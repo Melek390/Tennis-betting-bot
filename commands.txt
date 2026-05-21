@@ -1,0 +1,4 @@
+cd ~/Tennis-betting-bot && git pull && sudo systemctl restart tennisbot
+sudo systemctl status tennisbot
+grep "Kalshi match" ~/Tennis-betting-bot/bot.log | tail -20
+sudo journalctl -u tennisbot -n 80 --no-pager

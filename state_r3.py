@@ -27,6 +27,7 @@ class _R3State:
     entry_time: datetime | None = None
     player_name: str = ""
     match_name: str = ""
+    breaks_at_entry: int = 0   # snapshot of set2_breaks_against when position opened
 
 
 _Key = tuple[str, str]  # (match_id, player_side)
@@ -91,10 +92,11 @@ class R3Tracker:
     def set_entry(self, match_id: str, player: str, price: float,
                   player_name: str = "", match_name: str = "") -> None:
         d = self._get(match_id, player)
-        d.entry_price  = price
-        d.entry_time   = datetime.now(timezone.utc)
-        d.player_name  = player_name
-        d.match_name   = match_name
+        d.entry_price    = price
+        d.entry_time     = datetime.now(timezone.utc)
+        d.player_name    = player_name
+        d.match_name     = match_name
+        d.breaks_at_entry = d.set2_breaks_against  # freeze count so post-entry breaks are detected
 
     def reset_entry(self, match_id: str, player: str) -> None:
         d = self._get(match_id, player)
@@ -125,9 +127,9 @@ class R3Tracker:
                 and not d.score_even_after_first_break):
             return "Broken early, no recovery"
 
-        # 3. Broken twice in set 2
-        if d.set2_breaks_against >= 2:
-            return "Broken twice in Set 2"
+        # 3. First break after entry — exit immediately rather than waiting for a second break
+        if d.set2_breaks_against > d.breaks_at_entry:
+            return "Broken in Set 2"
 
         # 4. Time exit — 9 min, no momentum
         elapsed = (datetime.now(timezone.utc) - d.entry_time).total_seconds()

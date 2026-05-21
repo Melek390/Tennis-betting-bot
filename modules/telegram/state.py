@@ -8,3 +8,4 @@ STATE_MGR_KEY = "state_mgr"
 class BotState:
     enabled_r2: bool = True
     enabled_r3: bool = True
+    enabled_r4: bool = True

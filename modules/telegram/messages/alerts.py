@@ -147,6 +147,7 @@ def heartbeat_text(
     match_count: int,
     enabled_r2: bool = True,
     enabled_r3: bool = True,
+    enabled_r4: bool = True,
     kalshi_matches: list[str] | None = None,
 ) -> str:
     matches_line = (
@@ -165,6 +166,7 @@ def heartbeat_text(
         f"<b>Tennis API:</b> {matches_line}\n"
         f"<b>Rule 2:</b> {'ON' if enabled_r2 else 'OFF'}\n"
         f"<b>Rule 3:</b> {'ON' if enabled_r3 else 'OFF'}\n"
+        f"<b>Rule 4:</b> {'ON' if enabled_r4 else 'OFF'}\n"
         f"{kalshi_block}"
         f"<i>{_now()}</i>"
     )

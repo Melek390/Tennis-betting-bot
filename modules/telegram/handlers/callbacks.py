@@ -21,7 +21,7 @@ async def show_main(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
     query = update.callback_query
     await query.answer()
     await query.edit_message_text(
-        text=main_menu_text(state.enabled_r2, state.enabled_r3),
+        text=main_menu_text(state.enabled_r2, state.enabled_r3, state.enabled_r4),
         reply_markup=main_menu.build(),
         parse_mode=ParseMode.HTML,
     )
@@ -33,7 +33,7 @@ async def show_monitoring(update: Update, _context: ContextTypes.DEFAULT_TYPE) -
     await query.answer()
     await query.edit_message_text(
         text=rules_menu_text(),
-        reply_markup=rules_menu.build(state.enabled_r2, state.enabled_r3),
+        reply_markup=rules_menu.build(state.enabled_r2, state.enabled_r3, state.enabled_r4),
         parse_mode=ParseMode.HTML,
     )
 
@@ -61,7 +61,7 @@ async def toggle_rule_r2(update: Update, _context: ContextTypes.DEFAULT_TYPE) ->
     state.enabled_r2 = not state.enabled_r2
     await query.edit_message_text(
         text=rules_menu_text(),
-        reply_markup=rules_menu.build(state.enabled_r2, state.enabled_r3),
+        reply_markup=rules_menu.build(state.enabled_r2, state.enabled_r3, state.enabled_r4),
         parse_mode=ParseMode.HTML,
     )
 
@@ -73,7 +73,19 @@ async def toggle_rule_r3(update: Update, _context: ContextTypes.DEFAULT_TYPE) ->
     state.enabled_r3 = not state.enabled_r3
     await query.edit_message_text(
         text=rules_menu_text(),
-        reply_markup=rules_menu.build(state.enabled_r2, state.enabled_r3),
+        reply_markup=rules_menu.build(state.enabled_r2, state.enabled_r3, state.enabled_r4),
+        parse_mode=ParseMode.HTML,
+    )
+
+
+async def toggle_rule_r4(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    state = _context.application.bot_data[STATE_KEY]
+    query = update.callback_query
+    await query.answer()
+    state.enabled_r4 = not state.enabled_r4
+    await query.edit_message_text(
+        text=rules_menu_text(),
+        reply_markup=rules_menu.build(state.enabled_r2, state.enabled_r3, state.enabled_r4),
         parse_mode=ParseMode.HTML,
     )
 

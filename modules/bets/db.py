@@ -7,15 +7,15 @@ from datetime import datetime, timezone
 BETS_DB_KEY = "bets_db"
 
 RULE_LABELS: dict[str, str] = {
-    "r1": "Rule 1 — Break Point / Advantage",
     "r2": "Rule 2 — Kalshi Spike Fade",
     "r3": "Rule 3 — Back Fav after Set Loss",
+    "r4": "Rule 4 — Set 1 Winner Spike Fade",
 }
 
 _TABLES = {
-    "r1": "bets_r1",
     "r2": "bets_r2",
     "r3": "bets_r3",
+    "r4": "bets_r4",
 }
 
 _CREATE = """
@@ -99,7 +99,7 @@ class BetsDB:
             conn.commit()
 
     # ------------------------------------------------------------------
-    # Write — R3 (and legacy R1)
+    # Write — R3
     # ------------------------------------------------------------------
 
     def log_exit(
@@ -138,7 +138,9 @@ class BetsDB:
         market_title: str,
         log_data: dict,
         match_state_entry: str | None = None,
+        rule: str = "r2",
     ) -> None:
+        table = _TABLES.get(rule, "bets_r2")
         entry_mid  = log_data.get("entry_mid")
         exit_mid   = log_data.get("exit_mid")
         entry_time = log_data.get("entry_time")
@@ -158,7 +160,7 @@ class BetsDB:
 
         with self._conn() as conn:
             conn.execute(
-                "INSERT INTO bets_r2 "
+                f"INSERT INTO {table} "
                 "(timestamp, player, match, entry_price, exit_price, pnl, exit_reason, "
                 "match_state_entry, match_state_exit, "
                 "entry_ask, entry_spread, entry_drop, entry_prev_ask, "

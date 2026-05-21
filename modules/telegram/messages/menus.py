@@ -1,12 +1,13 @@
 from modules.bets.db import RULE_LABELS
 
 
-def main_menu_text(enabled_r2: bool = True, enabled_r3: bool = True) -> str:
+def main_menu_text(enabled_r2: bool = True, enabled_r3: bool = True, enabled_r4: bool = True) -> str:
     r2 = "✅" if enabled_r2 else "⬜"
     r3 = "✅" if enabled_r3 else "⬜"
+    r4 = "✅" if enabled_r4 else "⬜"
     return (
         "<b>Tennis Alerts</b>\n\n"
-        f"R2 {r2}   R3 {r3}\n\n"
+        f"R2 {r2}   R3 {r3}   R4 {r4}\n\n"
         "Choose an option:"
     )
 

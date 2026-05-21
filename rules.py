@@ -152,3 +152,43 @@ def check_exit_r2(
     if elapsed_seconds >= _R2_MAX_OPEN_SECS:
         return f"Time exit — {int(elapsed_seconds / 60)}m"
     return None
+
+
+# ------------------------------------------------------------------
+# Rule 4 — Set 1 Winner Spike Fade
+# Player leads 1-0 in sets; buy a ≥15¢ drop back into 35-72¢ range
+# ------------------------------------------------------------------
+
+_R4_DROP_MIN      = 0.15   # ≥15¢ drop (30s rolling window)
+_R4_PRICE_MIN     = 0.35
+_R4_PRICE_MAX     = 0.72
+_R4_SPREAD_MAX    = 0.08   # ≤8¢ spread (liquidity guard)
+_R4_HARD_STOP     = 0.10   # stop loss at -10¢
+_R4_TAKE_PROFIT   = 0.10   # take profit at +10¢
+_R4_MAX_OPEN_SECS = 8 * 60  # 8-minute time exit
+
+
+def check_entry_r4(price: float, prev_price: float | None, spread: float) -> bool:
+    if prev_price is None:
+        return False
+    drop = prev_price - price
+    return (drop >= _R4_DROP_MIN
+            and _R4_PRICE_MIN <= price <= _R4_PRICE_MAX
+            and spread <= _R4_SPREAD_MAX)
+
+
+def check_exit_r4(
+    mid: float,
+    entry_mid: float | None,
+    elapsed_seconds: float = 0,
+) -> str | None:
+    if entry_mid is None:
+        return None
+    pnl = mid - entry_mid
+    if pnl <= -_R4_HARD_STOP:
+        return f"Stop loss ({round(pnl * 100)}¢)"
+    if pnl >= _R4_TAKE_PROFIT:
+        return f"Take profit (+{round(pnl * 100)}¢)"
+    if elapsed_seconds >= _R4_MAX_OPEN_SECS:
+        return f"Time exit — {int(elapsed_seconds / 60)}m"
+    return None
