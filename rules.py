@@ -107,6 +107,11 @@ def check_entry_r3(
     if match.games_first + match.games_second > _R3_MAX_SET2_GAMES:
         return None
 
+    # Block S1-0 entries — backing the second player (typically lower seed) to
+    # recover after losing set 1 is not mean-reversion; 20% WR, -72.5¢ on live data
+    if match.sets_first > match.sets_second:
+        return None
+
     s1 = match.set_score(1)
     if s1 is None or s1.winner() == player:
         return None
@@ -123,7 +128,7 @@ def check_entry_r3(
 # ------------------------------------------------------------------
 
 _R2_DROP_MIN       = 0.16   # entry: YES price must have dropped ≥16¢
-_R2_PRICE_MIN      = 0.20
+_R2_PRICE_MIN      = 0.35
 _R2_PRICE_MAX      = 0.75
 _R2_HARD_STOP      = 0.08   # stop loss at -8¢
 _R2_TAKE_PROFIT    = 0.10   # take profit at +10¢
