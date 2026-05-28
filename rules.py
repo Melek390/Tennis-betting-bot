@@ -122,7 +122,7 @@ def check_entry_r3(
 # Rule 2 — Kalshi Spike Fade (price drop mean-reversion)
 # ------------------------------------------------------------------
 
-_R2_DROP_MIN       = 0.12   # entry: YES price must have dropped ≥12¢
+_R2_DROP_MIN       = 0.16   # entry: YES price must have dropped ≥16¢
 _R2_PRICE_MIN      = 0.20
 _R2_PRICE_MAX      = 0.75
 _R2_HARD_STOP      = 0.08   # stop loss at -8¢

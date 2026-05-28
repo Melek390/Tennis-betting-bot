@@ -165,10 +165,12 @@ async def _process_r2_market(
                     and match is not None
                     and mp_sets is not None
                     and not r2_tracker.is_in_cooldown(market.ticker)
-                    # Block deciding set — directional, not mean-reverting
-                    and not (match.sets_first == 1 and match.sets_second == 1)
-                    # Block trailing 0-1 — player already losing momentum
-                    and not (mp_sets == 0 and opp_sets == 1))
+                    # Block any deciding set (S1-1 best-of-3, S2-2 best-of-5)
+                    and not (match.sets_first == match.sets_second and match.sets_first > 0)
+                    # Block trailing 0-1 — already losing momentum
+                    and not (mp_sets == 0 and opp_sets == 1)
+                    # Block leading 1-0 — R4 owns this scenario with better params
+                    and not (mp_sets == 1 and opp_sets == 0))
     ctx          = state_mgr.get_exit_context(market.ticker, "yes")
     entry_ts     = state_mgr.get_entry_timestamp(market.ticker, "yes")
     elapsed      = (now - entry_ts).total_seconds() if entry_ts else 0
