@@ -130,16 +130,19 @@ def check_entry_r3(
 _R2_DROP_MIN       = 0.16   # entry: YES price must have dropped ≥16¢
 _R2_PRICE_MIN      = 0.45
 _R2_PRICE_MAX      = 0.75
+_R2_SPREAD_MAX     = 0.02   # ≤2¢ spread (liquidity guard)
 _R2_HARD_STOP      = 0.08   # stop loss at -8¢
 _R2_TAKE_PROFIT    = 0.10   # take profit at +10¢
 _R2_MAX_OPEN_SECS  = 15 * 60  # 15-minute time exit
 
 
-def check_entry_r2(price: float, prev_price: float | None) -> bool:
+def check_entry_r2(price: float, prev_price: float | None, spread: float = 0.0) -> bool:
     if prev_price is None:
         return False
     drop = prev_price - price
-    return drop >= _R2_DROP_MIN and _R2_PRICE_MIN <= price <= _R2_PRICE_MAX
+    return (drop >= _R2_DROP_MIN
+            and _R2_PRICE_MIN <= price <= _R2_PRICE_MAX
+            and spread <= _R2_SPREAD_MAX)
 
 
 def check_exit_r2(

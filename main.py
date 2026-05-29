@@ -161,7 +161,7 @@ async def _process_r2_market(
     match  = _match_for_market(market.title, live_matches)
 
     mp_sets, opp_sets = _market_player_sets(market.title, match) if match else (None, None)
-    entry_met    = (check_entry_r2(price, prev_ya)
+    entry_met    = (check_entry_r2(price, prev_ya, spread)
                     and match is not None
                     and mp_sets is not None
                     and not r2_tracker.is_in_cooldown(market.ticker)
