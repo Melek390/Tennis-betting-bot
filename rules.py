@@ -128,7 +128,7 @@ def check_entry_r3(
 # ------------------------------------------------------------------
 
 _R2_DROP_MIN       = 0.13   # entry: YES price must have dropped ≥13¢
-_R2_PRICE_MIN      = 0.45
+_R2_PRICE_MIN      = 0.30
 _R2_PRICE_MAX      = 0.75
 _R2_SPREAD_MAX     = 0.02   # ≤2¢ spread (liquidity guard)
 _R2_HARD_STOP      = 0.08   # stop loss at -8¢
