@@ -36,7 +36,7 @@ def parse_message(data: dict | list) -> list[MatchState]:
 
 
 def parse_finished(data: dict | list) -> list[str]:
-    """Return match_ids for matches the API has marked as finished (event_live=0)."""
+    """Return match_ids for matches the API has marked as finished (event_live=0 or event_status=After/Finished)."""
     if isinstance(data, list):
         raws = data
     elif isinstance(data, dict):
@@ -48,7 +48,10 @@ def parse_finished(data: dict | list) -> list[str]:
     for raw in raws:
         if not isinstance(raw, dict):
             continue
-        if str(raw.get("event_live")) == "0":
+        status = str(raw.get("event_status", "")).lower()
+        is_finished = (str(raw.get("event_live")) == "0"
+                       or status in ("after", "finished", "final"))
+        if is_finished:
             key = raw.get("event_key")
             if key is not None:
                 finished.append(str(key))
